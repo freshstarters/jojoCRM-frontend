@@ -15,3 +15,7 @@ Responsive web application for jojoCRM (Vite + React + Tailwind CSS).
    ```
 
 Vite proxies `/api` requests from `http://localhost:5173` to `http://127.0.0.1:8000`.
+
+## Shared UI Components
+
+- [`src/components/Checkbox.jsx`](src/components/Checkbox.jsx): Custom frosted checkbox (`.crm-checkbox`, `.crm-checkbox-box`, `.crm-checkbox-icon` in [`src/index.css`](src/index.css)) used across forms, activity timelines, and role permission matrices instead of browser-default checkboxes. Supports `checked`, `indeterminate`, `disabled`, optional `label`/`children`, and standard `onChange` events.

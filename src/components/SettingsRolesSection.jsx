@@ -3,6 +3,7 @@ import { updateWorkspaceRole } from '../service/crmService.js'
 import { apiGet } from '../utils/api.js'
 import { Button } from './Button.jsx'
 import { Card } from './Card.jsx'
+import { Checkbox } from './Checkbox.jsx'
 import { FeedbackNotice } from './FeedbackNotice.jsx'
 import { RefreshButton } from './RefreshButton.jsx'
 
@@ -449,15 +450,13 @@ export function SettingsRolesSection({
                             </td>
                             {CRUD_COLUMNS.map((col) => (
                               <td key={col.key} className="py-2 px-3 text-center">
-                                <input
-                                  type="checkbox"
+                                <Checkbox
                                   aria-label={`${role.name} ${obj.label} ${col.label}`}
                                   checked={Boolean(rowRights[col.key])}
                                   disabled={checkboxesDisabled}
                                   onChange={() =>
                                     handleToggleRight(role, obj.key, col.key)
                                   }
-                                  className="h-4 w-4 rounded border crm-border accent-[var(--brand-primary)] cursor-pointer disabled:cursor-not-allowed disabled:opacity-70"
                                 />
                               </td>
                             ))}

@@ -8,6 +8,7 @@ import {
 import { buildAssigneeSelectOptions } from '../../utils/crmFormOptions.js'
 import { formatDateTime, toDateTimeLocalValue } from '../../utils/formatters.js'
 import { Button } from '../Button.jsx'
+import { Checkbox } from '../Checkbox.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Select } from '../Select.jsx'
 
@@ -347,15 +348,13 @@ export function ActivityTimeline({
                       className="crm-input w-full px-2.5 py-1.5 text-xs"
                     />
                     {editType === 'task' ? (
-                      <label className="inline-flex items-center gap-2 text-xs text-main cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={editCompleted}
-                          onChange={(e) => setEditCompleted(e.target.checked)}
-                          disabled={savingEdit}
-                        />
-                        <span>Mark task completed</span>
-                      </label>
+                      <Checkbox
+                        checked={editCompleted}
+                        onChange={(e) => setEditCompleted(e.target.checked)}
+                        disabled={savingEdit}
+                        label="Mark task completed"
+                        className="text-xs text-main"
+                      />
                     ) : null}
                     <div className="flex justify-end gap-2">
                       <Button
