@@ -139,7 +139,7 @@ The reviewer confirms:
 
 Serves acceptance 3.
 
-Cloning Staff copies its object rights, field rights, and switches. Object rights are create, read, update, and delete. Field rights are hidden, read-only, and editable. The switches are import, export, automations, scripts, users and roles, theme and layouts, and unattended agent. Switches for features that arrive in later sprints are stored now and enforced when those features arrive. The Owner, or a role with the users-and-roles switch, can choose a non-Owner role when sending an invite and can reassign an existing non-Owner member to another non-Owner role in Settings. A signed-in verified user whose account has no password yet can set an initial password in Settings without using the signed-out reset flow, and can rename a registered passkey label.
+Cloning Staff copies its object rights, field rights, and switches. Object rights are create, read, update, and delete. Field rights are hidden, read-only, and editable. The switches are import, export, automations, scripts, users and roles, theme and layouts, and unattended agent. Switches for features that arrive in later sprints are stored now and enforced when those features arrive. The Owner, or a role with the users-and-roles switch, can choose a non-Owner role when sending an invite and can reassign an existing non-Owner member to another non-Owner role in Settings. Role reassignments and role permission updates apply immediately on the API and prompt or trigger active client sessions for affected users to refresh their permissions cleanly. A signed-in verified user whose account has no password yet can set an initial password in Settings without using the signed-out reset flow, and can rename a registered passkey label.
 
 A record's visibility is one of three: its owner, one role, or the whole workspace. Hidden fields are omitted for that role. Read-only fields are shown and cannot be saved by that role. Rights apply to the objects the pack turned on, including Job, Appointment, and Visit.
 
@@ -147,6 +147,7 @@ The reviewer confirms:
 
 - A clone can hide one field, freeze another, and leave a third editable.
 - A cloned role can be selected on an invite or assigned to a non-Owner member in Settings, and the change is audited.
+- Updating a non-Owner member's role or object permissions updates their active client session permissions without requiring manual logout/login.
 - A signed-in user can set an initial password when none is configured and rename a registered passkey in Settings.
 - The same record is visible or invisible according to the three sharing choices.
 - The Owner still sees the hidden field.
@@ -155,12 +156,14 @@ The reviewer confirms:
 
 Serves acceptance 4.
 
-Global search covers the objects the workspace has. A stage change from S2.3 writes an audit entry with the person, the time, the old stage, and the new stage. Global search results and the audit history drawer paginate results rather than returning unbounded lists. The workspace audit log drawer filters by actor kind, object type, action (`create`, `update`, `delete`), and search query, and opening a record in the inspector drawer shows that record's own audit change history.
+Global search covers the objects the workspace has. Foreign-key/relation pickers (`Account`, `Contact`, etc.) support server-backed search and pagination so workspaces with more than 250 linkable records can find and attach any readable record. Opening a record in the inspector drawer updates the URL query or path (`?inspect=...` or record route) so refreshing, sharing a link, or navigating Back/Forward returns to that inspected record. A stage change from S2.3 writes an audit entry with the person, the time, the old stage, and the new stage. Global search results and the audit history drawer paginate results rather than returning unbounded lists. The workspace audit log drawer filters by actor kind, object type, action (`create`, `update`, `delete`), and search query, and opening a record in the inspector drawer shows that record's own audit change history.
 
 The reviewer confirms:
 
 - Search finds a record by a distinctive name and does not return another workspace's row.
 - Search on Healthcare does not offer Deal.
+- Relation pickers can search and select readable records beyond the first 250 entries.
+- Refreshing the browser while inspecting a record reopens that record's inspector drawer cleanly.
 - The stage change is in the deal's inspector history and in the filtered workspace audit drawer after a refresh.
 - Large search results and audit histories paginate cleanly across pages and filter by object type, action, and search term.
 
@@ -176,6 +179,30 @@ The reviewer confirms:
 - There is no field for a diagnosis code, a lab result, or a prescription.
 - General services does not include Visit.
 
+### S2.7 Response and workspace caching
+
+Supports all acceptance items reliably at scale.
+
+Configure Django `CACHES` and HTTP caching (`ETag` / `Cache-Control`) for static starter catalog endpoints (`/api/v1/catalog/business-types/`) and workspace-scoped caching for frequently accessed metadata: workspace catalog summary, table record counts, dashboard summaries, and CRM dropdown options (`/crm/options/`). Cache keys are strictly isolated by workspace (and caller role/permissions where applicable) and are invalidated immediately whenever packs, tables, roles, members, or CRM records are created, updated, or deleted. On the frontend, deduplicate concurrent session/catalog/options fetches and retain short-lived in-memory lookup caches across pane navigation without leaking state across workspaces or sign-outs.
+
+The reviewer confirms:
+
+- Repeated requests for the starter business-type catalog return `304 Not Modified` / cache-hit responses without re-serializing static payloads.
+- Workspace summary, pack record counts, and CRM lookup options serve from cache on repeat reads and immediately reflect mutations after creating/editing a record, toggling a table, or updating a role.
+- One workspace never receives another workspace's cached payloads, and switching or signing out clears client-side caches.
+
+### S2.8 Demo seed data for manual testing
+
+Supports manual QA across acceptance 3–10 without affecting production signups.
+
+Provide an idempotent Django management command (`manage.py seed_demo_data`, supporting `--reset` and `--only <pack_key>`) restricted to non-production/debug environments (`DEBUG=True` or explicit `--force`) that populates verified Owner and Staff test accounts across representative business types (such as General services, Retail and trading, Healthcare and wellness, and Financial services). Each seeded tenant includes realistic Ghanaian `Account`, `Contact`/`Patient`, `Lead`, `Deal` (spanning all pipeline stages so Kanban boards and stage distribution charts render), `Job`, `Appointment`, `Ticket`, and `Activity` records—and later Sprint 3–5 stories extend the command to populate invoices, payments, stock, and custom dashboard widgets. Self-serve production workspaces continue to start empty.
+
+The reviewer confirms:
+
+- Running `seed_demo_data` twice is idempotent and populates rich, non-empty tables, linked records, and charts across the seeded test tenants.
+- Running `seed_demo_data --reset` cleanly refreshes demo tenants without touching non-seeded workspaces.
+- Normal self-serve workspace signup continues to create an empty workspace, and running the command with `DEBUG=False` without `--force` is refused.
+
 ## Sprint 3 — Stock and invoicing
 
 Unlocks acceptance 5 and 6.
@@ -186,12 +213,13 @@ The reviewer uses Retail and trading for stock and invoices, and Healthcare for 
 
 Serves acceptance 5.
 
-On Retail and trading, Product, line item, Invoice, and Payment are available. A line item points at a Product and can belong to a Deal, an Invoice, a Contract, or a Customer subscription when that parent is on. An Invoice stores an issue date and a due date so unpaid and overdue balances and date-offset automations can be evaluated. Invoice statuses start as Draft, Issued, Partially paid, Paid, and Void. The tenant can edit that list. The PDF shows the number, customer, issue date, due date, lines, GHS totals, and status. A Payment stores amount, date, method, and status against one invoice. Recording a payment does not charge a card and does not move stock. Deleting a Product or Account referenced by an issued invoice or contract is refused while those commercial links exist.
+On Retail and trading, Product, line item, Invoice, and Payment are available. A line item points at a Product and can belong to a Deal, an Invoice, a Contract, or a Customer subscription when that parent is on. An Invoice stores an issue date and a due date so unpaid and overdue balances and date-offset automations can be evaluated. Invoice statuses start as Draft, Issued, Partially paid, Paid, and Void. The tenant can edit that list. The PDF shows the number, customer, issue date, due date, lines, GHS totals, and status. A Payment stores amount, date, method, and status against one invoice. Payments exceeding the invoice's remaining unpaid balance are refused. Once an invoice leaves Draft (Issued, Partially paid, or Paid), its line items cannot be edited or deleted directly. Recording a payment does not charge a card and does not move stock. Deleting a Product or Account referenced by an issued invoice or contract is refused while those commercial links exist.
 
 The reviewer confirms:
 
 - A retail invoice with issue date, due date, and two products downloads as that PDF.
-- A partial payment leaves the invoice partially paid, and payments that meet the total leave it paid.
+- A partial payment leaves the invoice partially paid, payments that meet the total leave it paid, and an overpayment above the remaining balance is refused.
+- Editing or deleting line items on an Issued, Partially paid, or Paid invoice is refused.
 - Nothing in this flow asks the customer for a card.
 - Attempting to delete a Product or Account linked to an issued invoice is refused.
 
@@ -199,12 +227,12 @@ The reviewer confirms:
 
 Serves acceptance 5.
 
-A Retail and trading workspace can hold more than one warehouse, with one marked default. Each product stores quantity on hand and a reorder level in each warehouse. An invoice line can pick a warehouse. Quantity falls when the invoice is issued and returns when it is voided. A transfer record moves quantity from one warehouse to another, and both sides are in the audit history. The transfer cannot exceed the source quantity. A pack without Inventory, such as General services, has no warehouses.
+A Retail and trading workspace can hold more than one warehouse, with one marked default. Each product stores quantity on hand and a reorder level in each warehouse. An invoice line can pick a warehouse. Quantity falls when the invoice is issued and returns when an unpaid Issued invoice is voided; voiding a Partially paid or Paid invoice with settled payments is refused while active payments remain. A transfer record moves quantity from one warehouse to another, and both sides are in the audit history. The transfer cannot exceed the source quantity. A pack without Inventory, such as General services, has no warehouses.
 
 The reviewer confirms:
 
 - Issuing a retail invoice decreases only the chosen warehouse.
-- Voiding it restores that quantity.
+- Voiding an unpaid issued invoice restores that quantity, and voiding a partially paid or paid invoice is refused.
 - A transfer changes both warehouses and names the person who did it.
 - Paying the invoice leaves the quantities unchanged.
 - General services does not offer Inventory.
@@ -303,14 +331,25 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-A list can change columns, filters, and sort, and that combination can be saved and reopened. The deal kanban from S2.3 remains available beside the deal list. Record lists paginate rows with page controls that preserve active columns, filters, and sort.
+A list can change columns, filters, and sort, and that combination can be saved and reopened. The deal kanban from S2.3 remains available beside the deal list. Record lists paginate rows with page controls that preserve active columns, filters, and sort, and deep-linking to an inspected record (`?inspect=...`) preserves view context across refresh and history navigation. Foreign-key/relation pickers support server-backed search/pagination beyond 250 options.
 
 The reviewer confirms:
 
 - A saved view reopens with the same columns, filter, and sort.
 - Another user does not lose their own saved view.
 - A hidden field from S2.4 does not appear as a column for a role that cannot see it.
-- Navigating between pages on a filtered, sorted saved view preserves the view settings.
+- Navigating between pages on a filtered, sorted saved view preserves the view settings, and refreshing a deep-linked record reopens its inspector inside the view.
+
+### S4.6 Activities and tasks view
+
+Serves acceptance 4 and 10.
+
+Provide a dedicated cross-record Activities workspace view where users can list, filter (by activity type `note`, `task`, `call`, `meeting`, completion status, assignee, and search query), create/complete tasks, and jump directly to each activity's parent CRM record, respecting S2.4 object, field, and sharing permissions.
+
+The reviewer confirms:
+
+- A user can view open tasks, calls, and meetings across multiple Accounts, Contacts, Deals, Jobs, and Tickets from one workspace Activities view.
+- Completing a task or filtering by assignee/type updates the parent record's timeline, and records hidden by sharing/role rules remain excluded.
 
 ## Sprint 5 — Custom platform and theme
 
@@ -345,7 +384,7 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-The home dashboard is a set of widgets of type number, chart, and list. Each widget is bound to an object and filters. A record page is ordered sections and fields. The tenant who has the theme-and-layouts switch can rearrange those. There is no free-form canvas and no custom HTML.
+The home dashboard is a set of widgets of type number, chart, and list. Each widget is bound to an object and filters (including cross-record Activity task/meeting lists from S4.6). A record page is ordered sections and fields. The tenant who has the theme-and-layouts switch can rearrange those. There is no free-form canvas and no custom HTML.
 
 The reviewer confirms:
 
@@ -399,14 +438,14 @@ The reviewer confirms:
 
 Serves acceptance 7.
 
-jojoCRM sends through its own Hubtel account. The workspace submits a sender ID of at most 11 characters. Until Hubtel approves it, SMS does not send. Recipients see that sender ID. The Owner tops up a prepaid GHS wallet by card or mobile money through Paystack. The wallet is separate from the seat plan, including during the later trial. The rate per segment is configuration. A Lead or Contact receives campaign SMS only when SMS consent is on. The message includes opt-out instructions. A provider opt-out turns consent off. A send the wallet cannot cover does not go out and does not leave a partial debit the reviewer cannot see.
+jojoCRM sends through its own Hubtel account. The workspace submits a sender ID of at most 11 characters. Until Hubtel approves it, SMS does not send. Recipients see that sender ID. The Owner tops up a prepaid GHS wallet by card or mobile money through Paystack. The wallet is separate from the seat plan, including during the later trial. The rate per segment is configuration. A Lead or Contact receives campaign SMS only when SMS consent is on. The message includes opt-out instructions. A provider opt-out turns consent off and records an `AuditLog` entry (previous value `True`, new value `False`, and provider opt-out actor/source). A send the wallet cannot cover does not go out and does not leave a partial debit the reviewer cannot see.
 
 The reviewer confirms:
 
 - An unapproved sender ID cannot send.
 - A consented Contact is charged against the wallet at the configured rate, and the balance drops by that amount.
 - A Contact with consent off is skipped.
-- An opt-out turns consent off.
+- An opt-out turns consent off and writes an audit entry.
 - A balance below the next send blocks the send.
 
 ### S6.4 Campaign send
@@ -425,12 +464,13 @@ The reviewer confirms:
 
 Serves acceptance 9.
 
-A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
+A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. Webhook actions enforce the same outbound network safety checks as S5.2 scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
 
 The reviewer confirms:
 
 - A field change that meets a condition sends email, and the other branch does not.
 - The script action runs once on that branch, and the automation's execution history records the run and branch outcome.
+- A webhook action targeting a private, loopback, or link-local address is refused and logged in execution history.
 - A loop or a code step cannot be saved.
 - An automation firing an in-app notification displays the unread item in the topbar notification center and allows marking it read or dismissing it.
 
@@ -474,7 +514,7 @@ The reviewer confirms:
 
 Serves acceptance 11.
 
-Inside one workspace, two Accounts with the same email, or the same phone, merge automatically. The same rule applies to two Contacts. The audit entry records both sides. Any other similarity stays a suggestion until a person confirms it. Merges do not cross workspaces, and they do not merge an Account with a Contact. The unattended agent does not run a second merge of its own.
+Inside one workspace, two Accounts with the same email, or the same phone, merge automatically—including Accounts or Contacts created alongside or prior to lead conversions. The same rule applies to two Contacts. The audit entry records both sides. Any other similarity (such as matching company/person names without exact email/phone) stays a suggestion until a person confirms or links it. Merges do not cross workspaces, and they do not merge an Account with a Contact. The unattended agent does not run a second merge of its own.
 
 The reviewer confirms:
 
@@ -541,10 +581,11 @@ The reviewer confirms:
 
 Serves the release as a whole.
 
-The API and the web app are fit to run the acceptance list on the production host. Secrets stay in configuration. Card numbers are not in the application database. A carried-forward story from an earlier sprint is closed here if it was still open, and the fourteen acceptance items are walked through once on that host.
+The API and the web app are fit to run the acceptance list on the production host. Secrets stay in configuration. Card numbers are not in the application database. Production caching (`S2.7` `CACHES` backend, HTTP cache headers, and tenant-isolated invalidation) is verified under production settings. A carried-forward story from an earlier sprint is closed here if it was still open, and the fourteen acceptance items are walked through once on that host.
 
 The reviewer confirms:
 
 - The fourteen PRD acceptance items pass on the production workspace.
 - The exclusions in the PRD are still absent.
 - A card number cannot be found in the application database.
+- Cached responses remain strictly isolated per workspace and invalidate cleanly on writes.

@@ -10,7 +10,7 @@ The backend is the existing Django 6.1.2 project on PostgreSQL. It exposes a JSO
 
 A business needs one workspace whose starting tables match the kind of work it does. During creation the tenant picks one of 20 business types. jojoCRM then creates a shared core plus that type's pack. The pack is the working set for that business, so a typical tenant can run the business without creating a table. Custom tables remain for something the pack does not cover.
 
-The daily user is a person invited into a workspace. The buyer is the workspace Owner, who pays for seats and for SMS. Signup is self-serve. A stranger with a connection clearly located in Ghana can create a workspace and run the full product on real data.
+The daily user is a person invited into a workspace. The buyer is the workspace Owner, who pays for seats and for SMS. Signup is self-serve. A stranger with a connection clearly located in Ghana can create a workspace and run the full product on real data. Self-serve production workspaces always start empty; in non-production (local/staging) environments, a management seed command can populate representative test workspaces and sample records for manual QA without affecting production signups.
 
 ## Scope
 
@@ -48,7 +48,7 @@ A passkey is another way to sign in. It is not a required second factor. Connect
 
 An account belongs to one workspace. A workspace has many users. The workspace is addressed by a slug on a single app domain. Additional users join by email invite. An already signed-in verified account visiting the root or sign-in routes resolves into its workspace (`/{slug}`).
 
-There is one permanent Owner. The Owner cannot be removed. The Owner or a role with the users-and-roles switch can choose a non-Owner role when sending an invite, change an existing non-Owner member's role, and deactivate or reactivate non-Owner members; deactivating a member immediately ends their active sessions and stops them from logging in or counting as an active seat. Only the Owner manages the seat plan and the SMS wallet.
+There is one permanent Owner. The Owner cannot be removed. The Owner or a role with the users-and-roles switch can choose a non-Owner role when sending an invite, change an existing non-Owner member's role, and deactivate or reactivate non-Owner members; deactivating a member immediately ends their active sessions and stops them from logging in or counting as an active seat. Role reassignments and role permission updates take effect immediately on the API and cause open client sessions for affected users to refresh their active permissions cleanly. Only the Owner manages the seat plan and the SMS wallet.
 
 Other roles are cloned from a default Staff role. For each object, a role grants create, read, update, and delete. For each field, a role sets hidden, read-only, or editable. A role may also grant these switches:
 
@@ -80,7 +80,7 @@ Every workspace has:
 | --- | --- |
 | Account | A company or organization the tenant works with |
 | Contact | A person. Healthcare labels this Patient. Education labels this Student or Guardian. Nonprofit, faith, and membership labels this Donor or Member |
-| Activity | A note, task, call, meeting, or logged email |
+| Activity | A note, task, call, meeting, or logged email, viewable on records and in a cross-record workspace activity view |
 | File | An attachment on any record |
 | Tag | A label on a record |
 
@@ -169,7 +169,7 @@ Where the pack includes Invoice, statuses start as Draft, Issued, Partially paid
 
 An invoice is a commercial document with an issue date and a due date so unpaid and overdue balances and date-offset automations can be tracked. The tenant can view it and download it as a PDF showing the number, customer, issue date, due date, lines, totals, and status. jojoCRM does not file invoices with the Ghana Revenue Authority.
 
-A Payment records an amount, a date, a method, and a status against an Invoice. The app does not take a card payment from the tenant's customer. Card payments exist only for the workspace's own jojoCRM bill and SMS wallet.
+A Payment records an amount, a date, a method, and a status against an Invoice. Payments cannot exceed the remaining unpaid balance on the invoice. Once an invoice leaves Draft (Issued, Partially paid, or Paid), its line items cannot be edited or deleted directly; only Draft or unpaid Issued invoices with zero active payments can be voided to restore warehouse stock, while Partially paid or Paid invoices refuse voiding while settled payments exist. The app does not take a card payment from the tenant's customer. Card payments exist only for the workspace's own jojoCRM bill and SMS wallet.
 
 A Product or Account referenced by issued invoices, contracts, or active customer subscriptions cannot be deleted while those commercial links exist.
 
@@ -220,7 +220,7 @@ jojoCRM integrates Hubtel's SMS API on jojoCRM's own Hubtel account. Each worksp
 
 Each workspace has a prepaid GHS SMS wallet. The Owner tops it up by card or mobile money through Paystack. The wallet is separate from the seat subscription, including during the trial. The GHS rate per segment is configuration, not a value hardcoded in the product. A send that the wallet cannot cover does not go out.
 
-SMS goes only to Leads and Contacts whose SMS consent is on. The message includes opt-out instructions. When the provider reports an opt-out, consent turns off.
+SMS goes only to Leads and Contacts whose SMS consent is on. The message includes opt-out instructions. When the provider reports an opt-out, consent turns off and the change is written to the audit log.
 
 ## Customization
 
@@ -252,7 +252,7 @@ An automation is a rule. The role that has the automations switch may edit it.
 - Branches are if / else.
 - Actions: create record, update record, send email, in-app notification, or webhook.
 
-Automations have no loops and no custom code steps. A script action is the one script call allowed per branch, under the script rules above. In-app notifications created by automations appear in a topbar notification center where users can read and dismiss them. Each automation rule records an execution and refusal history showing trigger timestamps, matched branch, action outcomes, webhook or script errors, and stored AI agent refusals.
+Automations have no loops and no custom code steps. A script action is the one script call allowed per branch, under the script rules above. Webhook actions enforce the same outbound network protections as scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. In-app notifications created by automations appear in a topbar notification center where users can read and dismiss them. Each automation rule records an execution and refusal history showing trigger timestamps, matched branch, action outcomes, webhook or script errors, and stored AI agent refusals.
 
 ### Layouts
 
@@ -262,9 +262,10 @@ The layout builder lets a tenant rearrange a fixed set of surfaces:
 - Record pages as ordered sections and fields, with a per-record audit change history section inside the record inspector drawer.
 - Lists with chosen columns, filters, sort, saved views, and CSV import column-mapping preview with structured row-level error reporting.
 - A deal kanban on pipeline stage, where the pack includes Deal.
-- Global search across the objects the workspace has.
+- A cross-record Activities view for filtering workspace tasks, calls, meetings, and notes across parent records.
+- Global search across the objects the workspace has, plus searchable/paginated relation pickers when workspaces hold more than 250 linkable records.
 
-Navigating between workspace panes and subtabs preserves the active pane and subtab in the URL or session state so a browser refresh or history navigation returns to that view. Record lists, global search results, and the audit history drawer paginate results so large workspaces remain responsive, and the workspace audit drawer filters by actor kind, object type, action, and search query.
+Navigating between workspace panes and subtabs—and opening a record in the inspector drawer—preserves the active pane, subtab, and inspected record in the URL or session state so a browser refresh, shareable link, or history navigation returns to that view. Record lists, global search results, and the audit history drawer paginate results so large workspaces remain responsive, and the workspace audit drawer filters by actor kind, object type, action, and search query.
 
 There is no free-form canvas and no custom HTML.
 
@@ -292,7 +293,7 @@ The on-demand assists are:
 - Campaign message draft
 - Contract summary
 
-Exact email or exact phone on two Accounts, or on two Contacts, in the same workspace merges automatically. The audit entry records both sides. Every other similarity stays a suggestion until a person confirms it. Merges never cross workspaces. The agent does not merge on its own beyond this exact-match rule.
+Exact email or exact phone on two Accounts, or on two Contacts, in the same workspace merges automatically (including records created prior to or alongside lead conversion), with optional matching/linking for duplicate suggestions. The audit entry records both sides. Every other similarity stays a suggestion until a person confirms it. Merges never cross workspaces. The agent does not merge on its own beyond this exact-match rule.
 
 The unattended agent runs only as an automation action, and only for a role that has the unattended-agent switch. That role sets the instruction, which objects the agent may change, and whether it may send email. The agent does not ask a person to confirm. It cannot change billing, roles, scripts, or automations. One agent step runs per automation run. The instruction, the result, and the field changes are stored on the record.
 
@@ -319,6 +320,10 @@ jojoCRM registers with the Ghana Data Protection Commission under the Data Prote
 ## Clients
 
 The product ships one responsive web application. It does not ship native iOS or Android apps.
+
+## Performance and caching
+
+Frequently accessed static catalog payloads and workspace metadata (starter business-type catalog, workspace catalog summaries, table record counts, and CRM lookup options) use configured server-side caching and HTTP cache headers (`ETag` / `Cache-Control`) with strict workspace-keyed isolation and immediate invalidation whenever packs, tables, roles, members, or CRM records change. The web app deduplicates in-flight session/catalog requests and caches short-lived lookup responses in memory without leaking state across workspaces or sessions.
 
 ## Acceptance
 

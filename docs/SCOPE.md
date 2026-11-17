@@ -17,9 +17,9 @@ The schedule is eight two-week sprints. Sprint 8 is the public release of the fu
 Each line is one milestone. The stories under it are in [BACKLOG.md](BACKLOG.md).
 
 1. **Tenancy and auth.** Workspaces on one app domain, the Ghana connection check, email and password, Google, Microsoft, passkey, invites, the Owner and Staff roles, and the audit record.
-2. **Core and the catalog.** The business-type choice, the five core tables, the catalog, the General services and Healthcare packs, lead conversion, pipelines, Jobs, Appointments, Visits, field permissions, sharing, and search.
+2. **Core and the catalog.** The business-type choice, the five core tables, the catalog, the General services and Healthcare packs, lead conversion, pipelines, Jobs, Appointments, Visits, field permissions, sharing, search, response/workspace caching, and non-production QA seed tooling.
 3. **Stock and invoicing.** Product, line items, commercial invoice PDF, payments, contracts, customer subscriptions, warehouses, and transfers, including the Retail and trading pack.
-4. **Campaigns and files.** Tickets, campaign records, files, tags, CSV import and export, and saved list views, on workspaces whose packs include those objects. Sending campaigns waits for milestone 6.
+4. **Campaigns and files.** Tickets, campaign records, files, tags, CSV import and export, saved list views, and cross-record activities/tasks view, on workspaces whose packs include those objects. Sending campaigns waits for milestone 6.
 5. **Custom platform and theme.** Tenant-created tables and fields, the script sandbox, dashboard and record layouts, and theme tokens.
 6. **Mail, SMS, and automations.** Mailbox send and two-way sync, Hubtel campaigns, the prepaid SMS wallet, call campaigns, and if/else automations.
 7. **AI.** Every on-demand assist, exact-match merge, duplicate suggestions, and the unattended agent.
@@ -88,9 +88,10 @@ The reviewer can:
 - On General services, convert a lead and keep the lead on record, marked converted, with a new Account, Contact, and Deal. Create a Job with an assignee and a due date.
 - Move a deal across stages on a kanban and read that change in the audit history.
 - On Healthcare, book an Appointment and record a Visit with reason, notes, and follow-up.
-- Clone Staff, assign roles on invites and non-Owner members, set a field to hidden, read-only, or editable, share one record with its owner only, with one role, or with the whole workspace, and set an initial password or rename passkeys in Settings.
-- Find the workspace's records from global search, and not find an object the pack turned off.
-- Preserve the active workspace pane and subtab across page refreshes and browser history navigation, paginate global search results and the audit history drawer, filter the workspace audit log by actor kind, object type, action, and search query, and inspect per-record audit history inside the record inspector drawer.
+- Clone Staff, assign roles on invites and non-Owner members, set a field to hidden, read-only, or editable, share one record with its owner only, with one role, or with the whole workspace, immediately refresh permissions on open client sessions when roles or rights change, and set an initial password or rename passkeys in Settings.
+- Find the workspace's records from global search (and searchable/paginated foreign-key pickers beyond 250 options), and not find an object the pack turned off.
+- Preserve the active workspace pane, subtab, and inspected record across page refreshes, shareable links, and browser history navigation, paginate global search results and the audit history drawer, filter the workspace audit log by actor kind, object type, action, and search query, and inspect per-record audit history inside the record inspector drawer.
+- Benefit from server/client caching with immediate write invalidation for catalog, workspace summary, and lookup options, and run the non-production QA seed command to populate representative test tenants and charts for manual verification.
 
 Unlocks acceptance 3 and 4.
 
@@ -102,7 +103,7 @@ Invoice statuses start as Draft, Issued, Partially paid, Paid, and Void. The ten
 
 The reviewer can:
 
-- Issue a retail invoice with issue and due dates, lines, and a chosen warehouse, download the PDF, and record a payment. Stock drops on issue and returns on void. Marking the invoice paid does not move stock again.
+- Issue a retail invoice with issue and due dates, lines, and a chosen warehouse, download the PDF, and record a payment (refusing payments above the remaining balance, locking line items once issued, and refusing voiding while active payments exist). Stock drops on issue and returns on void of unpaid issued invoices. Marking the invoice paid does not move stock again.
 - Transfer quantity between warehouses and see both sides in the audit history.
 - Open a contract with its Account, Contact, status, dates, GHS value, and renewal date.
 - On Healthcare, create a customer subscription on a weekly, monthly, or yearly interval and see the interval produce a Draft invoice. Stock stays put until a person issues that invoice.
@@ -121,7 +122,8 @@ The reviewer can:
 - Save a retail campaign of each channel, with its leads and contacts, without sending it.
 - Attach a file to a record and apply a tag. A tag is a built-in label, not a relation field.
 - Import and export rows for objects the pack includes, as CSV, with column-mapping preview and structured row-level error reporting for failed rows.
-- Choose columns, filters, and sort, save that list view, and paginate record list tables while keeping those view settings.
+- Choose columns, filters, and sort, save that list view, preserve deep-linked inspection and paginated picker state, and paginate record list tables while keeping those view settings.
+- Filter and view workspace activities (notes, tasks, calls, meetings) across records in a cross-record Activities view.
 
 Completes the saved-view part of acceptance 10. Acceptance 7 stays open until milestone 6 sends the campaign. Full workspace export and delete stay in milestone 8.
 
@@ -146,9 +148,9 @@ The reviewer can:
 
 - Connect Google or Microsoft for mail without that connection counting as sign-in, send from a record, and see an email Activity.
 - Turn on two-way sync and see only messages that match a Contact copied onto the record.
-- Submit a sender ID, be blocked until Hubtel approves it, send only to Leads and Contacts with SMS consent, include opt-out instructions, turn consent off when the provider reports an opt-out, and see a send refused when the wallet cannot cover it.
+- Submit a sender ID, be blocked until Hubtel approves it, send only to Leads and Contacts with SMS consent, include opt-out instructions, turn consent off with an audit log entry when the provider reports an opt-out, and see a send refused when the wallet cannot cover it.
 - Run an email campaign, an SMS campaign, and a call campaign. The call campaign creates call activities for the campaign owner.
-- Save an automation with a trigger, field conditions, if/else, and an action that creates a record, updates a record, sends email, notifies in the app (readable and dismissible in the topbar notification center), or calls a webhook, and inspect its execution and refusal history. One branch may run one script. There is no loop and no custom code step.
+- Save an automation with a trigger, field conditions, if/else, and an action that creates a record, updates a record, sends email, notifies in the app (readable and dismissible in the topbar notification center), or calls a webhook (enforcing SSRF private/loopback/link-local blocks and timeout/size caps), and inspect its execution and refusal history. One branch may run one script. There is no loop and no custom code step.
 
 Completes acceptance 2, 7, 8, and 9.
 
@@ -161,7 +163,7 @@ Assists read only what the caller, or the automation's role, is allowed to see. 
 The reviewer can:
 
 - Run each on-demand assist: summary, follow-up draft, deal next step, ticket reply, workspace question, paste-to-record, win probability, lead score, duplicate suggestions, ticket priority and sentiment, subscription cancellation risk, campaign draft, and contract summary.
-- See two Accounts, or two Contacts, in the same workspace merge when the email or the phone matches exactly, with both sides in the audit entry. A fuzzier pair waits. A merge does not cross workspaces.
+- See two Accounts, or two Contacts, in the same workspace merge when the email or the phone matches exactly (including records created prior to or alongside lead conversion), with both sides in the audit entry. A fuzzier pair waits. A merge does not cross workspaces.
 - Fire the agent from an automation, read the instruction, the result, and the field changes on the record, and see it refused when it would change billing, roles, scripts, or automations.
 
 Unlocks acceptance 11 and 12.
@@ -177,7 +179,7 @@ The reviewer can:
 - Start one 60-day card trial per email, with the card authorized at signup and the first charge on day 60, then pay per seat by card renewal or by mobile-money prepay.
 - Let the subscription lapse and still sign in, view, and export, while creates, edits, sends, automations, scripts, and the agent are refused.
 - Read a privacy notice and processing terms that name the hosting country and the mail, SMS, payment, and model providers, then export the workspace and delete it.
-- Exercise the release on the hardened API and web app, including the carried-forward items from earlier milestones.
+- Exercise the release on the hardened API and web app—including configured server/HTTP caching and tenant-isolated invalidation—and complete the carried-forward items from earlier milestones.
 
 Unlocks acceptance 13 and 14. Passing this checklist, with every earlier acceptance item still passing, is release acceptance.
 
@@ -197,6 +199,10 @@ The scope is frozen to [PRD.md](PRD.md). A new request is not built until a scop
 - Whether it fits in the remaining milestones or rewrites their dates.
 
 The revision updates this document, [SOW.md](SOW.md), and [BACKLOG.md](BACKLOG.md) together before work on the request starts.
+
+### Scope revisions
+
+- **Discover S2.0–S2.1 revision (`P2.1–P2.9`)**: Added response/workspace caching (`PRD` *Performance and caching*; `S2.7`, `S8.4`), non-production demo QA seed tooling (`PRD` *Problem and user*; `S2.8` + Sprint 3–5 extensions), cross-record Activities view (`PRD` *Starter objects* & *Layouts*; `S4.6`, `S5.3`), inspected-record URL deep-linking and paginated FK pickers (`PRD` *Layouts*; `S2.5`, `S4.5`), live client permission refresh (`PRD` *Access and roles*; `S2.4`), invoice overpayment/edit-lock/void rules (`PRD` *Invoices and payments*; `S3.1`, `S3.2`), webhook SSRF protections and SMS opt-out audit logging (`PRD` *SMS* & *Automations*; `S6.3`, `S6.5`), and lead-conversion duplicate reconciliation (`PRD` *AI*; `S7.2`). Affects Milestones 2, 3, 4, 6, 7, and 8; the eight two-week milestone dates remain unchanged.
 
 ## Definition of done
 
