@@ -56,3 +56,35 @@ export function apiPatch(path, payload = {}) {
 export function apiDelete(path) {
   return requestJson(path, { method: 'DELETE', includeCsrf: true })
 }
+
+let inflightSessionRequest = null
+let inflightCatalogRequest = null
+let cachedCatalogResponse = null
+
+export function fetchAuthSession() {
+  if (!inflightSessionRequest) {
+    inflightSessionRequest = apiGet('/api/v1/auth/session/').finally(() => {
+      inflightSessionRequest = null
+    })
+  }
+  return inflightSessionRequest
+}
+
+export function fetchBusinessTypesCatalog() {
+  if (cachedCatalogResponse?.response?.ok) {
+    return Promise.resolve(cachedCatalogResponse)
+  }
+  if (!inflightCatalogRequest) {
+    inflightCatalogRequest = apiGet('/api/v1/catalog/business-types/')
+      .then((result) => {
+        if (result?.response?.ok && Array.isArray(result?.data?.business_types)) {
+          cachedCatalogResponse = result
+        }
+        return result
+      })
+      .finally(() => {
+        inflightCatalogRequest = null
+      })
+  }
+  return inflightCatalogRequest
+}
