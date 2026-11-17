@@ -4,6 +4,7 @@ import { Button } from './Button.jsx'
 import { Card } from './Card.jsx'
 import { FeedbackNotice } from './FeedbackNotice.jsx'
 import { Modal } from './Modal.jsx'
+import { RefreshButton } from './RefreshButton.jsx'
 
 export function SettingsPacksSection({
   workspace,
@@ -187,15 +188,11 @@ export function SettingsPacksSection({
               {packsData.pack_table_count} pack)
             </span>
           ) : null}
-          <Button
-            type="button"
-            variant="secondary"
-            disabled={loading}
+          <RefreshButton
+            loading={loading}
+            label="Refresh packs and tables"
             onClick={handleRefresh}
-            className="px-3 py-1.5 text-xs"
-          >
-            {loading ? 'Refreshing...' : 'Refresh'}
-          </Button>
+          />
         </div>
       </Card>
 

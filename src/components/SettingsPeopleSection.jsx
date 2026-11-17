@@ -3,6 +3,7 @@ import { Button } from './Button.jsx'
 import { Card } from './Card.jsx'
 import { FeedbackNotice } from './FeedbackNotice.jsx'
 import { Modal } from './Modal.jsx'
+import { RefreshButton } from './RefreshButton.jsx'
 import { apiGet, apiPost } from '../utils/api.js'
 
 const INVITE_STATUS_CLASSES = {
@@ -366,15 +367,11 @@ export function SettingsPeopleSection({
               <span className="badge badge-neutral num-tabular">
                 {invites.length} total
               </span>
-              <Button
-                type="button"
-                variant="secondary"
-                className="px-2.5 py-1 text-xs"
+              <RefreshButton
+                loading={loading}
+                label="Refresh people and invites"
                 onClick={loadPeople}
-                disabled={loading}
-              >
-                {loading ? 'Refreshing...' : 'Refresh'}
-              </Button>
+              />
             </div>
           </div>
 

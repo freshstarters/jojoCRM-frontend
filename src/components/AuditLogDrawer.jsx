@@ -3,6 +3,7 @@ import { apiGet } from '../utils/api.js'
 import { Button } from './Button.jsx'
 import { Drawer } from './Drawer.jsx'
 import { FeedbackNotice } from './FeedbackNotice.jsx'
+import { RefreshButton } from './RefreshButton.jsx'
 import { Select } from './Select.jsx'
 
 const ACTOR_KIND_OPTIONS = [
@@ -30,11 +31,19 @@ const OBJECT_TYPE_LABELS = {
   workspace: 'Workspace',
   workspace_pack: 'Pack',
   workspace_table: 'Table',
-  user: 'Account',
+  user: 'User',
   workspace_invite: 'Invite',
   external_identity: 'Sign-in link',
   passkey: 'Passkey',
   role: 'Role',
+  account: 'Account',
+  contact: 'Contact',
+  lead: 'Lead',
+  deal: 'Deal',
+  activity: 'Activity',
+  job: 'Job',
+  appointment: 'Appointment',
+  ticket: 'Ticket',
 }
 
 function formatAuditValue(value) {
@@ -69,6 +78,7 @@ export function AuditLogDrawer({
   onClose,
   workspaceSlug,
   userTimezone = 'Africa/Accra',
+  contactLabel = 'Contact',
   canManageUsers = false,
   refreshKey = 0,
   onSessionExpired,
@@ -212,29 +222,11 @@ export function AuditLogDrawer({
               options={ACTOR_KIND_OPTIONS}
             />
           </div>
-          <Button
-            type="button"
-            variant="secondary-icon"
-            disabled={loading}
+          <RefreshButton
+            loading={loading}
+            label="Refresh audit log"
             onClick={() => setManualRefresh((prev) => prev + 1)}
-            data-tooltip="Refresh audit log"
-            aria-label="Refresh audit log"
-          >
-            <svg
-              className={`w-4 h-4 shrink-0 ${loading ? 'animate-spin' : ''}`}
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <polyline points="23 4 23 10 17 10" />
-              <polyline points="1 20 1 14 7 14" />
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-            </svg>
-          </Button>
+          />
         </div>
 
         <FeedbackNotice tone="danger" message={error} />
@@ -263,7 +255,9 @@ export function AuditLogDrawer({
                   className: 'badge badge-neutral',
                 }
               const objectLabel =
-                OBJECT_TYPE_LABELS[entry.object_type] || entry.object_type
+                entry.object_type === 'contact'
+                  ? contactLabel
+                  : OBJECT_TYPE_LABELS[entry.object_type] || entry.object_type
 
               return (
                 <div key={entry.id} className="crm-subtle p-3.5 space-y-2">

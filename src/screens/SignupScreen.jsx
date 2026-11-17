@@ -4,7 +4,11 @@ import { Button } from '../components/Button.jsx'
 import { Card } from '../components/Card.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Select } from '../components/Select.jsx'
-import { apiGet, apiPost } from '../utils/api.js'
+import {
+  apiPost,
+  fetchAuthSession,
+  fetchBusinessTypesCatalog,
+} from '../utils/api.js'
 
 function slugifyWorkspaceName(value) {
   return value
@@ -16,7 +20,12 @@ function slugifyWorkspaceName(value) {
     .replace(/-+$/g, '')
 }
 
-export function SignupScreen({ onSignupSuccess, onNavigate }) {
+export function SignupScreen({
+  initialSessionInfo,
+  onSignedOut,
+  onSignupSuccess,
+  onNavigate,
+}) {
   const [workspaceName, setWorkspaceName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
@@ -31,8 +40,20 @@ export function SignupScreen({ onSignupSuccess, onNavigate }) {
   const [statusMessage, setStatusMessage] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [resending, setResending] = useState(false)
-  const [pendingVerification, setPendingVerification] = useState(null)
-  const [activeSession, setActiveSession] = useState(null)
+  const [pendingVerification, setPendingVerification] = useState(() =>
+    initialSessionInfo?.verificationRequired
+      ? {
+          email: initialSessionInfo.email || '',
+          workspace: initialSessionInfo.workspace,
+          hasSession: true,
+          message:
+            'Your workspace is awaiting email verification. Open the link in your email to unlock your workspace, or sign out to create a different workspace.',
+        }
+      : null,
+  )
+  const [activeSession, setActiveSession] = useState(() =>
+    initialSessionInfo?.authenticated ? initialSessionInfo : null,
+  )
   const [signingOut, setSigningOut] = useState(false)
 
   const effectiveSlug = slugEdited ? slug : slugifyWorkspaceName(workspaceName)
@@ -56,7 +77,7 @@ export function SignupScreen({ onSignupSuccess, onNavigate }) {
       setCatalogLoading(true)
       setCatalogError('')
       try {
-        const { response, data } = await apiGet('/api/v1/catalog/business-types/')
+        const { response, data } = await fetchBusinessTypesCatalog()
         if (cancelled) return
         if (!response.ok || !Array.isArray(data?.business_types)) {
           setCatalogError(data?.error || 'Could not load business types.')
@@ -80,10 +101,13 @@ export function SignupScreen({ onSignupSuccess, onNavigate }) {
   }, [])
 
   useEffect(() => {
+    if (initialSessionInfo !== undefined) {
+      return undefined
+    }
     let cancelled = false
     async function checkSession() {
       try {
-        const { response, data } = await apiGet('/api/v1/auth/session/')
+        const { response, data } = await fetchAuthSession()
         if (cancelled || !response.ok) return
         if (data?.authenticated && data?.workspace?.slug) {
           setActiveSession(data)
@@ -104,7 +128,7 @@ export function SignupScreen({ onSignupSuccess, onNavigate }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [initialSessionInfo])
 
   async function handleSignOutSession() {
     setSigningOut(true)
@@ -113,6 +137,7 @@ export function SignupScreen({ onSignupSuccess, onNavigate }) {
       await apiPost('/api/v1/logout/', {})
       setActiveSession(null)
       setPendingVerification(null)
+      onSignedOut?.()
       setStatusMessage('Signed out. You can now create a new workspace.')
     } catch {
       setErrorMessage('Could not sign out cleanly. Please try again.')

@@ -11,7 +11,15 @@ import {
   getActiveTableSummary,
   resolvePaneState,
 } from '../utils/catalog.js'
+import { AccountsPane } from './AccountsPane.jsx'
+import { AppointmentsPane } from './AppointmentsPane.jsx'
+import { ContactsPane } from './ContactsPane.jsx'
+import { DashboardPane } from './DashboardPane.jsx'
+import { DealsPane } from './DealsPane.jsx'
+import { JobsPane } from './JobsPane.jsx'
+import { LeadsPane } from './LeadsPane.jsx'
 import { SettingsPane } from './SettingsPane.jsx'
+import { TicketsPane } from './TicketsPane.jsx'
 
 function SidebarIcon({ id, isActive = false }) {
   const secondaryClass = `w-4 h-4 shrink-0 ${isActive ? '' : 'text-sub'}`.trim()
@@ -237,9 +245,14 @@ export function WorkspaceShell({
   const [auditRefreshKey, setAuditRefreshKey] = useState(0)
   const [logoutModalOpen, setLogoutModalOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [inspectTarget, setInspectTarget] = useState(null)
 
   const handleAuditRecorded = useCallback(() => {
     setAuditRefreshKey((prev) => prev + 1)
+  }, [])
+
+  const handleInspectTargetConsumed = useCallback((nonce) => {
+    setInspectTarget((prev) => (prev?.nonce === nonce ? null : prev))
   }, [])
 
   const sidebarGroups = useMemo(
@@ -267,9 +280,25 @@ export function WorkspaceShell({
   const activeSubtabObj =
     resolvedPane.item?.subtabs?.find((tab) => tab.id === resolvedPane.subtab) || null
 
-  function selectPane(paneId, subtabId = '') {
+  function selectPane(paneId, subtabId = '', options = {}) {
     setMobileSidebarOpen(false)
+    if (!options.keepInspectTarget) {
+      setInspectTarget(null)
+    }
     onNavigatePane?.(paneId, subtabId)
+  }
+
+  function handleOpenLinkedRecord(paneId, recordId) {
+    setInspectTarget((prev) => ({
+      paneId,
+      recordId,
+      nonce: (prev?.nonce ?? 0) + 1,
+    }))
+    if (paneId === 'deals') {
+      selectPane('deals', 'list', { keepInspectTarget: true })
+    } else {
+      selectPane(paneId, '', { keepInspectTarget: true })
+    }
   }
 
   return (
@@ -474,6 +503,49 @@ export function WorkspaceShell({
               onAuditRecorded={handleAuditRecorded}
               onSessionExpired={onSessionExpired}
             />
+          ) : resolvedPane.status === 'active' && resolvedPane.paneId === 'dashboard' ? (
+            <DashboardPane
+              workspace={workspace}
+              user={user}
+              activeTablesSummary={activeTablesSummary}
+              onSelectPane={selectPane}
+              onOpenRecord={handleOpenLinkedRecord}
+              onSessionExpired={onSessionExpired}
+            />
+          ) : resolvedPane.status === 'active' &&
+            ['accounts', 'contacts', 'leads', 'deals', 'jobs', 'appointments', 'tickets'].includes(
+              resolvedPane.paneId,
+            ) ? (
+            (() => {
+              const crmProps = {
+                workspace,
+                user,
+                permissions,
+                initialInspectRequest:
+                  inspectTarget?.paneId === resolvedPane.paneId ? inspectTarget : null,
+                onInspectRequestConsumed: handleInspectTargetConsumed,
+                onOpenLinkedRecord: handleOpenLinkedRecord,
+                onAuditRecorded: handleAuditRecorded,
+                onSessionExpired,
+              }
+              if (resolvedPane.paneId === 'accounts') return <AccountsPane {...crmProps} />
+              if (resolvedPane.paneId === 'contacts') return <ContactsPane {...crmProps} />
+              if (resolvedPane.paneId === 'leads') return <LeadsPane {...crmProps} />
+              if (resolvedPane.paneId === 'deals') {
+                return (
+                  <DealsPane
+                    {...crmProps}
+                    activeSubtab={resolvedPane.subtab}
+                    onSubtabChange={(nextTab) => selectPane('deals', nextTab)}
+                  />
+                )
+              }
+              if (resolvedPane.paneId === 'jobs') return <JobsPane {...crmProps} />
+              if (resolvedPane.paneId === 'appointments') {
+                return <AppointmentsPane {...crmProps} />
+              }
+              return <TicketsPane {...crmProps} />
+            })()
           ) : resolvedPane.status === 'disabled' || resolvedPane.status === 'unknown' ? (
             <section id="pane-unavailable" className="max-w-4xl mx-auto my-6">
               <Card className="p-6 space-y-4">
@@ -577,73 +649,9 @@ export function WorkspaceShell({
                       : activeEntryLabel}
                   </div>
                   <p className="text-xs text-sub">
-                    This workspace has no records yet.
+                    This module preview will light up in a future sprint.
                   </p>
                 </Card>
-
-                {resolvedPane.paneId === 'dashboard' ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                    <Card variant="subtle" className="p-4 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-main">
-                          Core tables
-                        </span>
-                        <span className="badge badge-info num-tabular">
-                          {activeTablesSummary.coreTables.length}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {activeTablesSummary.coreTables.map((tbl) =>
-                          tbl.paneId ? (
-                            <Button
-                              key={tbl.key}
-                              type="button"
-                              variant="secondary"
-                              onClick={() => selectPane(tbl.paneId, tbl.subtabId)}
-                              className="px-2.5 py-1 text-[11px]"
-                            >
-                              {tbl.label}
-                            </Button>
-                          ) : (
-                            <span key={tbl.key} className="badge badge-neutral">
-                              {tbl.label}
-                            </span>
-                          ),
-                        )}
-                      </div>
-                    </Card>
-
-                    <Card variant="subtle" className="p-4 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-main">
-                          Active pack tables
-                        </span>
-                        <span className="badge badge-success num-tabular">
-                          {activeTablesSummary.packTables.length}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {activeTablesSummary.packTables.map((tbl) =>
-                          tbl.paneId ? (
-                            <Button
-                              key={tbl.key}
-                              type="button"
-                              variant="secondary"
-                              onClick={() => selectPane(tbl.paneId, tbl.subtabId)}
-                              className="px-2.5 py-1 text-[11px]"
-                            >
-                              {tbl.label}
-                            </Button>
-                          ) : (
-                            <span key={tbl.key} className="badge badge-neutral">
-                              {tbl.label}
-                            </span>
-                          ),
-                        )}
-                      </div>
-                    </Card>
-                  </div>
-                ) : null}
               </Card>
             </section>
           )}
@@ -655,6 +663,7 @@ export function WorkspaceShell({
         onClose={() => setAuditDrawerOpen(false)}
         workspaceSlug={workspace?.slug}
         userTimezone={user?.timezone || 'Africa/Accra'}
+        contactLabel={workspace?.contact_label || 'Contact'}
         canManageUsers={canManageUsers}
         refreshKey={auditRefreshKey}
         onSessionExpired={onSessionExpired}

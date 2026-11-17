@@ -10,7 +10,7 @@ import { ResetPasswordScreen } from './screens/ResetPasswordScreen.jsx'
 import { SignupScreen } from './screens/SignupScreen.jsx'
 import { VerifyEmailScreen } from './screens/VerifyEmailScreen.jsx'
 import { WorkspaceShell } from './screens/WorkspaceShell.jsx'
-import { apiPost } from './utils/api.js'
+import { apiPost, fetchAuthSession } from './utils/api.js'
 import { buildWorkspacePath } from './utils/catalog.js'
 
 const AUTH_ROUTES = new Set([
@@ -76,6 +76,7 @@ function App() {
     unverifiedEmail: '',
   })
   const [sessionRecoveryChecked, setSessionRecoveryChecked] = useState(false)
+  const [initialSignupSession, setInitialSignupSession] = useState(null)
   const [sessionNotice, setSessionNotice] = useState('')
   const [resendFeedback, setResendFeedback] = useState('')
   const [resending, setResending] = useState(false)
@@ -145,16 +146,14 @@ function App() {
 
     let cancelled = false
 
-    fetch('/api/v1/auth/session/', {
-      credentials: 'same-origin',
-    })
-      .then(async (res) => {
-        const body = await res.json().catch(() => ({}))
+    fetchAuthSession()
+      .then(({ response: res, data: body }) => {
         if (cancelled) return
 
         if (res.ok && body?.authenticated && body?.workspace?.slug) {
           const targetSlug = body.workspace.slug
           setWorkspaceData(body)
+          setInitialSignupSession(null)
           setFetchedSlugState({
             slug: targetSlug,
             status: 'open',
@@ -170,12 +169,16 @@ function App() {
           return
         }
 
-        if (
-          res.ok &&
-          body?.verification_required &&
-          body?.workspace?.slug &&
-          routeState.route !== 'signup'
-        ) {
+        if (res.ok && body?.verification_required && body?.workspace?.slug) {
+          if (routeState.route === 'signup') {
+            setInitialSignupSession({
+              verificationRequired: true,
+              email: body.email || '',
+              workspace: body.workspace,
+            })
+            setSessionRecoveryChecked(true)
+            return
+          }
           const targetSlug = body.workspace.slug
           setFetchedSlugState({
             slug: targetSlug,
@@ -191,10 +194,12 @@ function App() {
           return
         }
 
+        setInitialSignupSession(null)
         setSessionRecoveryChecked(true)
       })
       .catch(() => {
         if (!cancelled) {
+          setInitialSignupSession(null)
           setSessionRecoveryChecked(true)
         }
       })
@@ -344,6 +349,7 @@ function App() {
       // Proceed to login screen even if network fails
     }
     setWorkspaceData(null)
+    setInitialSignupSession(null)
     setFetchedSlugState({
       slug: null,
       status: 'idle',
@@ -437,6 +443,8 @@ function App() {
       }
       return (
         <SignupScreen
+          initialSessionInfo={initialSignupSession}
+          onSignedOut={() => setInitialSignupSession(null)}
           onSignupSuccess={handleAuthenticatedWorkspace}
           onNavigate={navigateTo}
         />

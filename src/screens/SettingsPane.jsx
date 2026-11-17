@@ -772,8 +772,11 @@ export function SettingsPane({
 
       {activeTab === 'roles' && (
         <SettingsRolesSection
+          workspace={workspace}
           workspaceSlug={workspace?.slug}
           permissions={permissions}
+          onWorkspaceUpdated={onWorkspaceUpdated}
+          onAuditRecorded={onAuditRecorded}
           onSessionExpired={onSessionExpired}
         />
       )}

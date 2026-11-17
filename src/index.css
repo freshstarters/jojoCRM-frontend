@@ -605,7 +605,8 @@ td {
 .custom-select-portal {
   position: fixed;
   z-index: 9999;
-  background-color: var(--bg-surface);
+  background-color: var(--bg-modal);
+  background-color: color-mix(in srgb, var(--bg-modal) 92%, transparent);
   -webkit-backdrop-filter: blur(18px);
   backdrop-filter: blur(18px);
   border: 1px solid var(--border-strong);
