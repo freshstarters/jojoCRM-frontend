@@ -106,6 +106,41 @@ export function RecordLinksSection({
     })
   }
 
+  if (Array.isArray(linkedRecords.source_leads) && linkedRecords.source_leads.length > 0) {
+    groups.push({
+      title:
+        linkedRecords.source_leads.length === 1
+          ? 'Converted from Lead'
+          : 'Converted from Leads',
+      items: linkedRecords.source_leads.map((lead) => ({
+        paneId: 'leads',
+        recordId: lead.id,
+        label: lead.name,
+        meta: [lead.record_code, lead.company, lead.status === 'converted' ? 'Converted' : 'Open']
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    })
+  } else if (linkedRecords.lead) {
+    groups.push({
+      title: 'Converted from Lead',
+      items: [
+        {
+          paneId: 'leads',
+          recordId: linkedRecords.lead.id,
+          label: linkedRecords.lead.name,
+          meta: [
+            linkedRecords.lead.record_code,
+            linkedRecords.lead.company,
+            linkedRecords.lead.status === 'converted' ? 'Converted' : 'Open',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        },
+      ],
+    })
+  }
+
   if (groups.length === 0) {
     return null
   }

@@ -231,7 +231,14 @@ export function ContactsPane({
             className="crm-hover cursor-pointer"
             onClick={() => handleInspect(con.id)}
           >
-            <td className="py-3 px-4 font-medium text-main">{con.name}</td>
+            <td className="py-3 px-4 font-medium text-main">
+              <div>{con.name}</div>
+              {con.source_lead?.record_code ? (
+                <div className="text-[11px] text-sub font-normal num-tabular">
+                  From {con.source_lead.record_code}
+                </div>
+              ) : null}
+            </td>
             <td className="py-3 px-4 text-sub">
               {con.account?.name || 'Standalone'}
             </td>

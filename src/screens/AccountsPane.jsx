@@ -188,7 +188,14 @@ export function AccountsPane({
             className="crm-hover cursor-pointer"
             onClick={() => handleInspect(acc.id)}
           >
-            <td className="py-3 px-4 font-medium text-main">{acc.name}</td>
+            <td className="py-3 px-4 font-medium text-main">
+              <div>{acc.name}</div>
+              {acc.source_lead?.record_code ? (
+                <div className="text-[11px] text-sub font-normal num-tabular">
+                  From {acc.source_lead.record_code}
+                </div>
+              ) : null}
+            </td>
             <td className="py-3 px-4 text-sub">{acc.city || 'Not set'}</td>
             <td className="py-3 px-4 text-sub num-tabular">{acc.phone || 'Not set'}</td>
             <td className="py-3 px-4 text-sub break-all">{acc.email || 'Not set'}</td>
