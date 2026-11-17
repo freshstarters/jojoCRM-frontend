@@ -3,6 +3,8 @@ import { Button } from '../components/Button.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
+import { ConversionResultBanner } from '../components/crm/ConversionResultBanner.jsx'
+import { ConvertLeadModal } from '../components/crm/ConvertLeadModal.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
 import {
@@ -10,6 +12,7 @@ import {
   SummaryChartCard,
 } from '../components/crm/SummaryMiniCharts.jsx'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
+import { canUserConvertLead } from '../service/crmService.js'
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'Open and converted' },
@@ -44,6 +47,7 @@ export function LeadsPane({
   const contactLabel = workspace?.contact_label || 'Contact'
   const contactPlural = workspace?.contact_plural_label || 'Contacts'
   const roleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
+  const { conversionEnabled, canConvert } = canUserConvertLead(permissions, workspace)
 
   const pane = useCrmRecordsPane({
     workspaceSlug: workspace?.slug,
@@ -61,8 +65,14 @@ export function LeadsPane({
   const [createError, setCreateError] = useState('')
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState(null)
+  const [convertModalOpen, setConvertModalOpen] = useState(false)
+  const [convertTargetLead, setConvertTargetLead] = useState(null)
+  const [conversionResult, setConversionResult] = useState(null)
 
   const active = pane.activeRecord
+  const isActiveConverted = active?.status === 'converted'
+  const identityLocked =
+    !pane.rights.canUpdate || pane.savingInspector || isActiveConverted
   const formValues = draft ?? {
     name: active?.name || '',
     company: active?.company || '',
@@ -121,17 +131,76 @@ export function LeadsPane({
     pane.openInspector(recordId)
   }
 
+  function openConvertModal(lead = null) {
+    setConvertTargetLead(lead)
+    setConvertModalOpen(true)
+  }
+
+  async function handleLeadConverted(data) {
+    setConversionResult(data)
+    onAuditRecorded?.()
+    if (pane.inspectorOpen && pane.activeRecord?.id === data?.lead?.id) {
+      setDraft(null)
+      await pane.refreshActiveRecord()
+    } else {
+      pane.reload()
+    }
+  }
+
   return (
     <>
       <CrmListPage
         id="pane-leads"
         title="Leads"
-        subtitle="Prospects kept separate from Accounts and Contacts until conversion."
+        subtitle={
+          conversionEnabled
+            ? 'Prospects kept separate from Accounts and Contacts until conversion.'
+            : 'Prospects tracked in this workspace.'
+        }
         roleName={roleName}
         canRead={pane.rights.canRead}
         canCreate={pane.rights.canCreate}
         createLabel="New Lead"
         onCreateClick={openCreateModal}
+        headerActions={
+          conversionEnabled ? (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!canConvert}
+              data-tooltip={
+                canConvert
+                  ? undefined
+                  : `Your ${roleName} role lacks permission to convert leads`
+              }
+              onClick={() => openConvertModal(null)}
+              className="px-3 py-1.5 text-xs flex items-center space-x-1.5"
+            >
+              <svg
+                className="w-3.5 h-3.5 text-sub shrink-0"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                aria-hidden="true"
+              >
+                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="8.5" cy="7" r="4" />
+                <line x1="20" y1="8" x2="20" y2="14" />
+                <line x1="23" y1="11" x2="17" y2="11" />
+              </svg>
+              <span>Convert Lead</span>
+            </Button>
+          ) : null
+        }
+        extraContent={
+          <ConversionResultBanner
+            result={conversionResult}
+            contactLabel={contactLabel}
+            onOpenRecord={onOpenLinkedRecord}
+            onDismiss={() => setConversionResult(null)}
+          />
+        }
         stats={[
           {
             label: 'Visible leads',
@@ -165,7 +234,11 @@ export function LeadsPane({
             />
           </SummaryChartCard>
         }
-        toolbarCaption="Open a row to edit lead details or log notes, tasks, calls, and meetings."
+        toolbarCaption={
+          conversionEnabled
+            ? 'Open a row to edit lead details, convert open leads, or log notes, tasks, calls, and meetings.'
+            : 'Open a row to edit lead details or log notes, tasks, calls, and meetings.'
+        }
         searchValue={pane.search}
         onSearchChange={pane.setSearch}
         searchPlaceholder="Search leads..."
@@ -213,26 +286,51 @@ export function LeadsPane({
               </span>
             </td>
             <td className="py-3 px-4">
-              <span
-                className={`badge ${
-                  lead.status === 'converted' ? 'badge-success' : 'badge-info'
-                }`}
-              >
-                {lead.status === 'converted' ? 'Converted' : 'Open'}
-              </span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span
+                  className={`badge ${
+                    lead.status === 'converted' ? 'badge-success' : 'badge-info'
+                  }`}
+                >
+                  {lead.status === 'converted' ? 'Converted' : 'Open'}
+                </span>
+                {lead.status === 'converted' && lead.converted_deal?.record_code ? (
+                  <span className="text-[11px] text-sub num-tabular">
+                    {lead.converted_deal.record_code}
+                  </span>
+                ) : null}
+              </div>
             </td>
             <td
               className="py-3 px-4 text-right"
               onClick={(e) => e.stopPropagation()}
             >
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => handleInspect(lead.id)}
-                className="px-2.5 py-1 text-xs"
-              >
-                Inspect
-              </Button>
+              <div className="inline-flex items-center gap-1.5">
+                {conversionEnabled && lead.status === 'open' ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={!canConvert}
+                    data-tooltip={
+                      canConvert
+                        ? undefined
+                        : `Your ${roleName} role lacks permission to convert leads`
+                    }
+                    onClick={() => openConvertModal(lead)}
+                    className="px-2.5 py-1 text-xs"
+                  >
+                    Convert
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => handleInspect(lead.id)}
+                  className="px-2.5 py-1 text-xs"
+                >
+                  Inspect
+                </Button>
+              </div>
             </td>
           </tr>
         )}
@@ -392,7 +490,7 @@ export function LeadsPane({
         error={pane.inspectorError}
         notice={pane.actionNotice}
         canUpdate={pane.rights.canUpdate}
-        canDelete={pane.rights.canDelete}
+        canDelete={pane.rights.canDelete && !isActiveConverted}
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
@@ -403,6 +501,12 @@ export function LeadsPane({
           active?.status === 'converted' ? 'badge-success' : 'badge-info'
         }`}
       >
+        {isActiveConverted ? (
+          <p className="text-[11px] text-sub">
+            Name, company, email, and phone stay with the Account and {contactLabel} created from this lead.
+          </p>
+        ) : null}
+
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label htmlFor="lead-insp-name" className="block font-medium text-body mb-1">
@@ -412,7 +516,7 @@ export function LeadsPane({
               id="lead-insp-name"
               type="text"
               value={formValues.name}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              disabled={identityLocked}
               onChange={(e) => setDraft({ ...formValues, name: e.target.value })}
               className="crm-input w-full px-3 py-2"
             />
@@ -425,7 +529,7 @@ export function LeadsPane({
               id="lead-insp-company"
               type="text"
               value={formValues.company}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              disabled={identityLocked}
               onChange={(e) => setDraft({ ...formValues, company: e.target.value })}
               className="crm-input w-full px-3 py-2"
             />
@@ -441,7 +545,7 @@ export function LeadsPane({
               id="lead-insp-phone"
               type="text"
               value={formValues.phone}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              disabled={identityLocked}
               onChange={(e) => setDraft({ ...formValues, phone: e.target.value })}
               className="crm-input w-full px-3 py-2"
             />
@@ -454,7 +558,7 @@ export function LeadsPane({
               id="lead-insp-email"
               type="email"
               value={formValues.email}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              disabled={identityLocked}
               onChange={(e) => setDraft({ ...formValues, email: e.target.value })}
               className="crm-input w-full px-3 py-2"
             />
@@ -488,7 +592,41 @@ export function LeadsPane({
             className="crm-input w-full px-3 py-2"
           />
         </div>
+
+        {conversionEnabled && active?.status === 'open' ? (
+          <div className="pt-1">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={!canConvert}
+              data-tooltip={
+                canConvert
+                  ? undefined
+                  : `Your ${roleName} role lacks permission to convert leads`
+              }
+              onClick={() => openConvertModal(active)}
+              className="px-3 py-1.5 text-xs"
+            >
+              Convert this lead
+            </Button>
+          </div>
+        ) : null}
       </RecordInspectorDrawer>
+
+      {conversionEnabled ? (
+        <ConvertLeadModal
+          open={convertModalOpen}
+          onClose={() => {
+            setConvertModalOpen(false)
+            setConvertTargetLead(null)
+          }}
+          workspaceSlug={workspace?.slug}
+          contactLabel={contactLabel}
+          initialLead={convertTargetLead}
+          onConverted={handleLeadConverted}
+          onSessionExpired={onSessionExpired}
+        />
+      ) : null}
     </>
   )
 }

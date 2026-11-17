@@ -26,6 +26,30 @@ export function getObjectRights(permissions, objectKey) {
   }
 }
 
+export function canUserConvertLead(permissions, workspace) {
+  const enabledKeys = workspace?.enabled_object_keys || []
+  const conversionEnabled =
+    enabledKeys.includes('lead') &&
+    enabledKeys.includes('deal') &&
+    enabledKeys.includes('account') &&
+    enabledKeys.includes('contact')
+  if (!conversionEnabled) {
+    return { conversionEnabled: false, canConvert: false }
+  }
+  const leadRights = getObjectRights(permissions, 'lead')
+  const dealRights = getObjectRights(permissions, 'deal')
+  const accountRights = getObjectRights(permissions, 'account')
+  const contactRights = getObjectRights(permissions, 'contact')
+  const canConvert = Boolean(
+    leadRights.canRead &&
+      leadRights.canUpdate &&
+      dealRights.canCreate &&
+      (accountRights.canCreate || accountRights.canRead) &&
+      (contactRights.canCreate || contactRights.canRead),
+  )
+  return { conversionEnabled: true, canConvert }
+}
+
 export function fetchDashboardSummary(slug) {
   return apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/dashboard/`)
 }
@@ -75,6 +99,19 @@ export function deleteCrmRecord(slug, objectKey, recordId) {
 export function createRecordActivity(slug, objectKey, recordId, payload) {
   return apiPost(
     `/api/v1/workspaces/${encodeURIComponent(slug)}/records/${encodeURIComponent(objectKey)}/${recordId}/activities/`,
+    payload,
+  )
+}
+
+export function fetchLeadConversionPreview(slug, leadId) {
+  return apiGet(
+    `/api/v1/workspaces/${encodeURIComponent(slug)}/records/lead/${leadId}/conversion-preview/`,
+  )
+}
+
+export function convertLeadRecord(slug, leadId, payload = {}) {
+  return apiPost(
+    `/api/v1/workspaces/${encodeURIComponent(slug)}/records/lead/${leadId}/convert/`,
     payload,
   )
 }

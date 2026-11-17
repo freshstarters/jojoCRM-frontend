@@ -5,10 +5,13 @@ import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
 import { Subtabs } from '../components/Subtabs.jsx'
+import { ConversionResultBanner } from '../components/crm/ConversionResultBanner.jsx'
+import { ConvertLeadModal } from '../components/crm/ConvertLeadModal.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
 import { PipelineStageDistribution } from '../components/crm/PipelineStageDistribution.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
+import { canUserConvertLead } from '../service/crmService.js'
 import { DEALS_SUBTABS } from '../utils/catalog.js'
 import { formatDateOnly, formatGhs } from '../utils/formatters.js'
 
@@ -59,6 +62,7 @@ export function DealsPane({
   const contactPlural = workspace?.contact_plural_label || 'Contacts'
   const roleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
   const viewMode = activeSubtab === 'kanban' ? 'kanban' : 'list'
+  const { conversionEnabled, canConvert } = canUserConvertLead(permissions, workspace)
 
   const pane = useCrmRecordsPane({
     workspaceSlug: workspace?.slug,
@@ -76,6 +80,8 @@ export function DealsPane({
   const [createError, setCreateError] = useState('')
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState(null)
+  const [convertModalOpen, setConvertModalOpen] = useState(false)
+  const [conversionResult, setConversionResult] = useState(null)
 
   const accountOptions = useMemo(
     () => [
@@ -258,8 +264,15 @@ export function DealsPane({
                           <div className="text-[11px] text-sub truncate">
                             {deal.account?.name || deal.contact?.name || 'Unlinked'}
                           </div>
-                          <div className="text-xs font-bold text-main num-tabular">
-                            {formatGhs(deal.amount)}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-bold text-main num-tabular">
+                              {formatGhs(deal.amount)}
+                            </span>
+                            {deal.source_lead?.record_code ? (
+                              <span className="badge badge-neutral text-[10px] num-tabular">
+                                From {deal.source_lead.record_code}
+                              </span>
+                            ) : null}
                           </div>
                         </button>
                       ))}
@@ -285,12 +298,43 @@ export function DealsPane({
         createLabel="New Deal"
         onCreateClick={openCreateModal}
         headerActions={
-          <Subtabs
-            tabs={DEALS_SUBTABS}
-            activeId={viewMode}
-            onChange={(nextTab) => onSubtabChange?.(nextTab)}
-            ariaLabel="Deals views"
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            {conversionEnabled ? (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!canConvert}
+                data-tooltip={
+                  canConvert
+                    ? undefined
+                    : `Your ${roleName} role lacks permission to convert leads`
+                }
+                onClick={() => setConvertModalOpen(true)}
+                className="px-3 py-1.5 text-xs flex items-center space-x-1.5"
+              >
+                <svg
+                  className="w-3.5 h-3.5 text-sub shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="8.5" cy="7" r="4" />
+                  <line x1="20" y1="8" x2="20" y2="14" />
+                  <line x1="23" y1="11" x2="17" y2="11" />
+                </svg>
+                <span>Convert Lead</span>
+              </Button>
+            ) : null}
+            <Subtabs
+              tabs={DEALS_SUBTABS}
+              activeId={viewMode}
+              onChange={(nextTab) => onSubtabChange?.(nextTab)}
+              ariaLabel="Deals views"
+            />
+          </div>
         }
         stats={[
           {
@@ -304,7 +348,17 @@ export function DealsPane({
             caption: 'Total GHS across filtered deals',
           },
         ]}
-        extraContent={<PipelineStageDistribution summary={pane.summary} />}
+        extraContent={
+          <div className="space-y-4">
+            <ConversionResultBanner
+              result={conversionResult}
+              contactLabel={contactLabel}
+              onOpenRecord={onOpenLinkedRecord}
+              onDismiss={() => setConversionResult(null)}
+            />
+            <PipelineStageDistribution summary={pane.summary} />
+          </div>
+        }
         toolbarCaption="Open a deal to update details, change stage, or log activities."
         searchValue={pane.search}
         onSearchChange={pane.setSearch}
@@ -341,7 +395,14 @@ export function DealsPane({
             className="crm-hover cursor-pointer"
             onClick={() => handleInspect(deal.id)}
           >
-            <td className="py-3 px-4 font-medium text-main">{deal.title}</td>
+            <td className="py-3 px-4 font-medium text-main">
+              <div>{deal.title}</div>
+              {deal.source_lead?.record_code ? (
+                <div className="text-[11px] text-sub font-normal num-tabular">
+                  From {deal.source_lead.record_code}
+                </div>
+              ) : null}
+            </td>
             <td className="py-3 px-4 text-sub">
               {[deal.account?.name, deal.contact?.name].filter(Boolean).join(' · ') || 'Unlinked'}
             </td>
@@ -702,6 +763,21 @@ export function DealsPane({
           />
         </div>
       </RecordInspectorDrawer>
+
+      {conversionEnabled ? (
+        <ConvertLeadModal
+          open={convertModalOpen}
+          onClose={() => setConvertModalOpen(false)}
+          workspaceSlug={workspace?.slug}
+          contactLabel={contactLabel}
+          onConverted={(data) => {
+            setConversionResult(data)
+            onAuditRecorded?.()
+            pane.reload()
+          }}
+          onSessionExpired={onSessionExpired}
+        />
+      ) : null}
     </>
   )
 }
