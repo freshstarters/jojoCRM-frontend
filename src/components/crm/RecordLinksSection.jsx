@@ -73,6 +73,25 @@ export function RecordLinksSection({
     })
   }
 
+  if (Array.isArray(linkedRecords.invoices) && linkedRecords.invoices.length > 0) {
+    groups.push({
+      title: 'Invoices',
+      items: linkedRecords.invoices.map((inv) => ({
+        paneId: 'invoicing',
+        recordId: inv.id,
+        label: inv.invoice_number,
+        meta: [
+          inv.status,
+          inv.total_amount !== undefined && inv.total_amount !== null
+            ? formatGhs(inv.total_amount)
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    })
+  }
+
   if (Array.isArray(linkedRecords.jobs) && linkedRecords.jobs.length > 0) {
     groups.push({
       title: 'Jobs',
