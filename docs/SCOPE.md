@@ -104,7 +104,7 @@ Invoice statuses start as Draft, Issued, Partially paid, Paid, and Void. The ten
 
 The reviewer can:
 
-- Issue a retail invoice (or pre-fill a Draft invoice directly from a Deal carrying Account, Contact, and Deal line items) with issue and due dates, lines, and a chosen warehouse, download the PDF, and record a payment (refusing payments above the remaining balance, locking line items once issued, enforcing status-removal reassignment guards, and refusing voiding while active payments exist). Stock drops on issue and returns on void of unpaid issued invoices. Marking the invoice paid does not move stock again.
+- Issue a retail invoice (or pre-fill a Draft invoice directly from a Deal carrying Account, Contact, and Deal line items) with issue and due dates, lines, and a chosen warehouse, download the PDF, and record a payment (refusing payments above the remaining balance, locking line items once issued, enforcing status-removal reassignment guards, and refusing voiding while active payments exist). Stock drops on issue and returns on void of unpaid issued invoices. Marking the invoice paid does not move stock again. Idempotent demo QA seeding extensions populate invoices, payments, and warehouse stock levels on commercial demo tenants.
 - Transfer quantity between warehouses and see both sides in the audit history.
 - Open a contract with its Account, Contact, status, dates, GHS value, and renewal date, or pre-fill one directly from a Deal.
 - On Healthcare, create a customer subscription on a weekly, monthly, or yearly interval and see the interval produce a Draft invoice. Stock stays put until a person issues that invoice.
@@ -120,12 +120,12 @@ Support and the campaign record exist on packs that include them, before any mes
 The reviewer can:
 
 - Work a healthcare ticket through the default statuses and edit statuses cleanly with rename sync and removal reassignment guards.
-- Save a retail campaign of each channel, with its leads and contacts, without sending it.
+- Save a retail campaign of each channel, with its leads and contacts, without sending it, with QA seed extensions populating baseline campaign records on Campaign-enabled demo tenants.
 - Attach a file to a record and apply a tag. A tag is a built-in label, not a relation field.
 - Import and export rows for objects the pack includes, as CSV, with column-mapping preview and structured row-level error reporting for failed rows.
 - Choose columns, filters, and sort, save that list view, preserve deep-linked inspection and paginated picker state, use Global Search quick-navigation commands and zero-match quick-create shortcuts, paginate record list tables while keeping those view settings, and run permission-checked, audited bulk row actions across selected records.
-- Manage multiple sales pipelines with stage outcome categories (`Open`, `Won`, `Lost`), close reason, and actual closed date tracking.
-- Filter and view workspace activities (notes, tasks, calls, meetings) across records in a cross-record Activities view, and toggle Appointments and Visits between list and Day/Week agenda views where enabled.
+- Manage multiple sales pipelines with stage outcome categories (`Open`, `Won`, `Lost`), close reason, actual closed date tracking, stage conversion funnel percentages, cycle duration metrics, and win/loss breakdowns.
+- Filter and view workspace activities (notes, tasks, calls, meetings) across records in a cross-record Activities view (plus quick To-Do creation/completion on the Home Dashboard action checklist), and toggle Appointments and Visits between list and Day/Week agenda views where enabled.
 
 Completes the saved-view part of acceptance 10. Acceptance 7 stays open until milestone 6 sends the campaign. Full workspace export and delete stay in milestone 8.
 
@@ -137,7 +137,7 @@ The reviewer can:
 
 - Add a table, add those field types, and point a many-to-one relation at another record.
 - Run a script that writes a field in the same workspace, using the standard functions, and see a call to a private, loopback, or link-local address refused. The script has no filesystem, cannot call another script, and cannot change billing, roles, or scripts.
-- Rearrange dashboard widgets (number, chart, and list, each bound to an object and filters) and the sections and fields on a record page.
+- Rearrange dashboard widgets (number, chart, and list, each bound to an object and filters with server-backed `This Month`/`Quarter`/`YTD`/`All Time` period filtering and baseline QA seed widget layouts) and the sections and fields on a record page.
 - Set a logo, primary, accent, and surface colors, light or dark, and a font from the short list, and see the shell, dashboard, and record pages use those tokens.
 
 Unlocks the custom-table and script parts of acceptance 9, and the rest of acceptance 10. There is no custom CSS, custom HTML, or free-form canvas.
@@ -183,7 +183,7 @@ The reviewer can:
 - Start one 60-day card trial per email, with the card authorized at signup and the first charge on day 60, then pay per seat by card renewal or by mobile-money prepay.
 - Let the subscription lapse and still sign in, view, and export, while creates, edits, sends, automations, scripts, and the agent are refused.
 - Read a privacy notice and processing terms that name the hosting country and the mail, SMS, WhatsApp (Meta, when enabled), payment, and model providers, then export the workspace and delete it.
-- Exercise the release on the hardened API and web app—including configured server/HTTP caching with tenant-isolated invalidation and viewing active sessions / signing out other devices in Settings—and complete the carried-forward items from earlier milestones.
+- Exercise the release on the hardened API and web app—including configured server/HTTP caching with tenant-isolated invalidation, a non-blocking client offline/reconnecting status banner with automatic state resync, and viewing active sessions / signing out other devices in Settings—and complete the carried-forward items from earlier milestones.
 
 Unlocks acceptance 13 and 14. Passing this checklist, with every earlier acceptance item still passing, is release acceptance.
 
@@ -210,6 +210,7 @@ The revision updates this document, [SOW.md](SOW.md), and [BACKLOG.md](BACKLOG.m
 - **Discover S2.1–S2.2 revision**: Added public marketing website (`PRD` *Public website*; `S8.5`), interactive AI workspace setup & table advisor (`PRD` *AI*; `S7.4`), dynamic editable pipeline stage selection during lead conversion (`S2.3`), and paginated/truncation-aware `ConvertLeadModal` Lead/Account/Contact pickers (`S2.5`). Affects Milestones 2, 7, and 8; the eight two-week milestone dates remain unchanged.
 - **Discover S2.2–S2.3 revision (`P2.1–P2.9`)**: Added WhatsApp Business Cloud API chat, audio/voice-note recording (audio-only file storage—excluding images, videos, and documents), and call-log sync plus Gmail/Outlook `Lead` matching without storing email file attachments (`PRD` *Email*, *WhatsApp*, *Privacy*; Sprint 6 Prerequisites; `S6.2`, `S6.6`, `S8.3`); expanded stage color tones & swatches (`PRD` *Deals*; `S5.4`); multiple sales pipelines and Deal stage outcomes/close reason/closed date (`PRD` *Deals*; `S4.7`); object/field/sharing-scoped audit visibility (`S2.5`) and active sessions / sign-out-other-devices (`PRD` *Access and roles*; `S8.4`); guided Deal -> Draft Invoice/Contract/Job handoff and Invoice/Ticket status-removal reassignment guards (`PRD` *Deals*, *Invoices and payments*, *Contracts*, *Tickets*; `S3.1`, `S3.3`, `S4.1`); and multi-row list bulk actions (`PRD` *Layouts*; `S4.5`). Affects Milestones 2, 3, 4, 6, and 8; the eight two-week milestone dates remain unchanged.
 - **Discover S2.4–S2.6 revision (`P2.1–P2.3`)**: Added Day/Week Agenda & Calendar toggle on `Appointments` and `Visits` (`PRD` *Layouts*; `S4.6`), permission-aware Global Search quick-navigation commands and zero-match quick-create shortcuts (`PRD` *Layouts*; `S4.5`), and per-user in-app reminder digest preferences for assigned overdue tasks, upcoming appointments, and Visits flagged with follow-ups in the topbar notification center (`PRD` *Automations*; `S6.5`); also aligned Milestone 2 and Milestone 8 active-sessions placement with `S8.4`. Affects Milestones 4, 6, and 8; the eight two-week milestone dates remain unchanged.
+- **Discover S2.0–S2.8 revision (`P2.1–P2.4` & Starter Roles)**: Added 3–5 editable, deletable starter roles per business type (`PRD` *Access and roles*); server-backed dashboard period filtering (`This Month`/`Quarter`/`YTD`/`All Time`) and quick To-Do creation/completion (`PRD` *Layouts*; `S4.6`, `S5.3`); pipeline conversion funnel, cycle velocity, and win/loss analytics (`PRD` *Deals*; `S4.7`); idempotent Sprint 3–5 QA seed extensions (`S3.1`, `S3.2`, `S4.2`, `S5.3`); and client offline/reconnecting banner with automatic resync (`PRD` *Performance and caching*; `S8.4`). Affects Milestones 3, 4, 5, and 8; the eight two-week milestone dates remain unchanged.
 
 ## Definition of done
 

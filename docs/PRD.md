@@ -51,7 +51,7 @@ An account belongs to one workspace. A workspace has many users. The workspace i
 
 There is one permanent Owner. The Owner cannot be removed. The Owner or a role with the users-and-roles switch can choose a non-Owner role when sending an invite, change an existing non-Owner member's role, and deactivate or reactivate non-Owner members; deactivating a member immediately ends their active sessions and stops them from logging in or counting as an active seat. Role reassignments and role permission updates take effect immediately on the API and cause open client sessions for affected users to refresh their active permissions cleanly. Only the Owner manages the seat plan and the SMS wallet.
 
-Other roles are cloned from a default Staff role. For each object, a role grants create, read, update, and delete. For each field, a role sets hidden, read-only, or editable. A role may also grant these switches:
+Other roles can be cloned from the default Staff role or from one of the 3–5 editable, deletable starter roles included for each business type at workspace creation. For each object, a role grants create, read, update, and delete. For each field, a role sets hidden, read-only, or editable. A role may also grant these switches:
 
 - Import
 - Export
@@ -150,7 +150,7 @@ Where the pack includes Lead and Deal, converting a lead creates an Account, a C
 
 ### Deals
 
-Where the pack includes Deal, a Deal belongs to a pipeline of ordered stages. A new workspace with Deal starts with one pipeline: New, Qualified, Proposal, Won, Lost. The tenant can create, rename, switch, set default, and remove sales pipelines, and can edit stages with configurable color tones and swatches plus stage outcome categories (`Open`, `Won`, `Lost`) with optional close reason and closed date. Deals are also shown as a kanban on stage, and when Invoice, Contract, or Job is enabled, a user can create a pre-filled Draft Invoice, Contract, or Job directly from a Deal.
+Where the pack includes Deal, a Deal belongs to a pipeline of ordered stages. A new workspace with Deal starts with one pipeline: New, Qualified, Proposal, Won, Lost. The tenant can create, rename, switch, set default, and remove sales pipelines, and can edit stages with configurable color tones and swatches plus stage outcome categories (`Open`, `Won`, `Lost`) with optional close reason, closed date, stage-to-stage conversion funnel metrics, cycle velocity, and win/loss reason analytics. Deals are also shown as a kanban on stage, and when Invoice, Contract, or Job is enabled, a user can create a pre-filled Draft Invoice, Contract, or Job directly from a Deal.
 
 ### Tickets
 
@@ -263,7 +263,7 @@ Automations have no loops and no custom code steps. A script action is the one s
 
 The layout builder lets a tenant rearrange a fixed set of surfaces:
 
-- A home dashboard of widgets. Widget types are number, chart, and list. Each widget is bound to an object and filters.
+- A home dashboard of widgets supporting period filtering (`This Month`, `Quarter`, `YTD`, `All Time`) and quick follow-up To-Do creation/completion. Widget types are number, chart, and list. Each widget is bound to an object and filters.
 - Record pages as ordered sections and fields, with a per-record audit change history section inside the record inspector drawer.
 - Lists with chosen columns, filters, sort, saved views, permission-checked audited bulk row actions (stage/status updates, assignment, tagging, and delete), and CSV import column-mapping preview with structured row-level error reporting.
 - A deal kanban on pipeline stage, where the pack includes Deal.
@@ -333,7 +333,7 @@ Before signing in, prospective tenants can browse a public marketing and informa
 
 ## Performance and caching
 
-Frequently accessed static catalog payloads and workspace metadata (starter business-type catalog, workspace catalog summaries, table record counts, and CRM lookup options) use configured server-side caching and HTTP cache headers (`ETag` / `Cache-Control`) with strict workspace-keyed isolation and immediate invalidation whenever packs, tables, roles, members, or CRM records change. The web app deduplicates in-flight session/catalog requests and caches short-lived lookup responses in memory without leaking state across workspaces or sessions.
+Frequently accessed static catalog payloads and workspace metadata (starter business-type catalog, workspace catalog summaries, table record counts, and CRM lookup options) use configured server-side caching and HTTP cache headers (`ETag` / `Cache-Control`) with strict workspace-keyed isolation and immediate invalidation whenever packs, tables, roles, members, or CRM records change. The web app deduplicates in-flight session/catalog requests, caches short-lived lookup responses in memory without leaking state across workspaces or sessions, and displays a non-blocking offline/reconnecting status banner with automatic state resync when connectivity returns.
 
 ## Acceptance
 

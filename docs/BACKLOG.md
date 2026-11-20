@@ -223,6 +223,7 @@ The reviewer confirms:
 - Editing or deleting line items on an Issued, Partially paid, or Paid invoice is refused.
 - Nothing in this flow asks the customer for a card.
 - Attempting to delete a Product or Account linked to an issued invoice is refused.
+- Running `manage.py seed_demo_data` via Sprint 3 extension hooks idempotently populates representative Draft/Issued/Partially paid Invoices, Payments, and Product line items on Commercial demo tenants.
 
 ### S3.2 Warehouses
 
@@ -237,6 +238,7 @@ The reviewer confirms:
 - A transfer changes both warehouses and names the person who did it.
 - Paying the invoice leaves the quantities unchanged.
 - General services does not offer Inventory.
+- Demo QA seeding (`seed_demo_data`) idempotently populates multi-warehouse stock levels and sample transfers on Inventory-enabled demo tenants.
 
 ### S3.3 Contract
 
@@ -303,6 +305,7 @@ The reviewer confirms:
 - A saved campaign produces no outbound message and no call activity.
 - A Lead or Contact can be added to and removed from the retail list.
 - Energy and fuel does not offer Campaign.
+- Demo QA seeding (`seed_demo_data`) idempotently populates sample Draft/Planned Campaigns and member lists on Campaign-enabled demo tenants.
 
 ### S4.3 Files and tags
 
@@ -346,24 +349,24 @@ The reviewer confirms:
 
 Serves acceptance 4, 6, and 10.
 
-Provide a dedicated cross-record Activities workspace view where users can list, filter (by activity type `note`, `task`, `call`, `meeting`, completion status, assignee, and search query), create/complete tasks, and jump directly to each activity's parent CRM record, respecting S2.4 object, field, and sharing permissions. On workspaces where `Appointment` or `Visit` is enabled, provide a lightweight Day/Week Agenda toggle beside the list view so staff can inspect scheduled appointments, assignee availability, and follow-up visits chronologically while honoring S2.4 visibility and field rights.
+Provide a dedicated cross-record Activities workspace view where users can list, filter (by activity type `note`, `task`, `call`, `meeting`, completion status, assignee, and search query), create/complete tasks (including quick To-Do creation and completion directly from the Home Dashboard action checklist), and jump directly to each activity's parent CRM record, respecting S2.4 object, field, and sharing permissions. On workspaces where `Appointment` or `Visit` is enabled, provide a lightweight Day/Week Agenda toggle beside the list view so staff can inspect scheduled appointments, assignee availability, and follow-up visits chronologically while honoring S2.4 visibility and field rights.
 
 The reviewer confirms:
 
 - A user can view open tasks, calls, and meetings across multiple Accounts, Contacts, Deals, Jobs, and Tickets from one workspace Activities view.
-- Completing a task or filtering by assignee/type updates the parent record's timeline, and records hidden by sharing/role rules remain excluded.
+- Completing a task or creating a quick To-Do from the Home Dashboard or Activities view updates the parent record's timeline immediately, and records hidden by sharing/role rules remain excluded.
 - Switching Appointments or Visits to the Day/Week Agenda view displays visible scheduled slots and visits chronologically in the user's timezone without exposing hidden fields or unshared records.
 
 ### S4.7 Multiple sales pipelines and stage outcomes
 
 Serves acceptance 4 and 10.
 
-Workspaces with the Deal table enabled can create, rename, switch, set default, and remove multiple sales pipelines (moving deals or blocking deletion when deals remain on the only pipeline). Each pipeline stage stores a semantic outcome category (`Open`, `Won`, `Lost`) independent of stage name, and closing a deal records optional close reason and actual `closed_at` timestamp so open pipeline value and won/lost reporting remain accurate. DealsPane lets users switch active pipelines, and lead conversion lets users choose the destination pipeline and stage.
+Workspaces with the Deal table enabled can create, rename, switch, set default, and remove multiple sales pipelines (moving deals or blocking deletion when deals remain on the only pipeline). Each pipeline stage stores a semantic outcome category (`Open`, `Won`, `Lost`) independent of stage name, and closing a deal records optional close reason and actual `closed_at` timestamp so open pipeline value, stage-to-stage conversion funnel percentages, average cycle duration, and won/lost analytics remain accurate. DealsPane lets users switch active pipelines, and lead conversion lets users choose the destination pipeline and stage.
 
 The reviewer confirms:
 
 - A General services workspace can add a second sales pipeline (e.g., Renewals), create/move deals on its Kanban board, and select it during Lead conversion without disturbing the default pipeline.
-- Moving a deal into a stage marked Won or Lost records `closed_at` and separates won/lost revenue from active open pipeline totals even when stage names are customized.
+- Moving a deal into a stage marked Won or Lost records `closed_at`, separates won/lost revenue from active open pipeline totals even when stage names are customized, and updates conversion funnel, cycle velocity, and win/loss breakdowns within caller S2.4 permissions.
 
 ## Sprint 5 — Custom platform and theme
 
@@ -398,13 +401,14 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-The home dashboard is a set of widgets of type number, chart, and list. Each widget is bound to an object and filters (including cross-record Activity task/meeting lists from S4.6). A record page is ordered sections and fields. The tenant who has the theme-and-layouts switch can rearrange those. There is no free-form canvas and no custom HTML.
+The home dashboard is a set of widgets of type number, chart, and list, supporting server-backed time-window period filtering (`This Month`, `Quarter`, `YTD`, `All Time`). Each widget is bound to an object and filters (including cross-record Activity task/meeting lists from S4.6). A record page is ordered sections and fields. The tenant who has the theme-and-layouts switch can rearrange those. There is no free-form canvas and no custom HTML.
 
 The reviewer confirms:
 
-- Adding, removing, and reordering widgets changes the home dashboard.
+- Adding, removing, reordering widgets, and switching the dashboard period filter (`This Month`, `Quarter`, `YTD`, `All Time`) updates the home dashboard metrics cleanly.
 - Reordering fields on a record page survives a reload.
 - A widget respects the viewer's sharing and hidden fields.
+- Demo QA seeding (`seed_demo_data`) idempotently registers baseline custom widget layouts for demo tenants.
 
 ### S5.4 Theme tokens
 
@@ -619,7 +623,7 @@ The reviewer confirms:
 
 Serves the release as a whole.
 
-The API and the web app are fit to run the acceptance list on the production host. Secrets stay in configuration. Card numbers are not in the application database. Production caching (`S2.7` `CACHES` backend, HTTP cache headers, and tenant-isolated invalidation) is verified under production settings. Signed-in users can view their own active sessions and sign out all other devices from Settings. A carried-forward story from an earlier sprint is closed here if it was still open, and the fourteen acceptance items are walked through once on that host.
+The API and the web app are fit to run the acceptance list on the production host. Secrets stay in configuration. Card numbers are not in the application database. Production caching (`S2.7` `CACHES` backend, HTTP cache headers, and tenant-isolated invalidation) is verified under production settings, and the web app surfaces a non-blocking offline/reconnecting status banner that automatically resyncs active lookups and permissions once connectivity returns. Signed-in users can view their own active sessions and sign out all other devices from Settings. A carried-forward story from an earlier sprint is closed here if it was still open, and the fourteen acceptance items are walked through once on that host.
 
 The reviewer confirms:
 
@@ -627,7 +631,7 @@ The reviewer confirms:
 - The exclusions in the PRD are still absent.
 - A card number cannot be found in the application database.
 - Signed-in users can view active sessions and sign out other devices in Settings.
-- Cached responses remain strictly isolated per workspace and invalidate cleanly on writes.
+- Cached responses remain strictly isolated per workspace and invalidate cleanly on writes, and losing/regaining network connectivity shows a non-blocking reconnecting notice and refreshes stale tab state automatically.
 
 ### S8.5 Public marketing website
 
