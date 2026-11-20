@@ -171,6 +171,12 @@ export function AcceptInviteScreen({ token, onAcceptSuccess, onNavigate }) {
                   {preview.email}
                 </span>
               </div>
+              {preview.role?.name ? (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sub">Assigned role</span>
+                  <span className="badge badge-info">{preview.role.name}</span>
+                </div>
+              ) : null}
               {preview.invited_by_email ? (
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-sub">Invited by</span>

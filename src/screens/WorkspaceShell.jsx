@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { Suspense, lazy, useCallback, useMemo, useState } from 'react'
 import { AuditLogDrawer } from '../components/AuditLogDrawer.jsx'
 import { Button } from '../components/Button.jsx'
 import { Card } from '../components/Card.jsx'
@@ -11,15 +11,34 @@ import {
   getActiveTableSummary,
   resolvePaneState,
 } from '../utils/catalog.js'
-import { AccountsPane } from './AccountsPane.jsx'
-import { AppointmentsPane } from './AppointmentsPane.jsx'
-import { ContactsPane } from './ContactsPane.jsx'
-import { DashboardPane } from './DashboardPane.jsx'
-import { DealsPane } from './DealsPane.jsx'
-import { JobsPane } from './JobsPane.jsx'
-import { LeadsPane } from './LeadsPane.jsx'
-import { SettingsPane } from './SettingsPane.jsx'
-import { TicketsPane } from './TicketsPane.jsx'
+
+const AccountsPane = lazy(() =>
+  import('./AccountsPane.jsx').then((m) => ({ default: m.AccountsPane })),
+)
+const AppointmentsPane = lazy(() =>
+  import('./AppointmentsPane.jsx').then((m) => ({ default: m.AppointmentsPane })),
+)
+const ContactsPane = lazy(() =>
+  import('./ContactsPane.jsx').then((m) => ({ default: m.ContactsPane })),
+)
+const DashboardPane = lazy(() =>
+  import('./DashboardPane.jsx').then((m) => ({ default: m.DashboardPane })),
+)
+const DealsPane = lazy(() =>
+  import('./DealsPane.jsx').then((m) => ({ default: m.DealsPane })),
+)
+const JobsPane = lazy(() =>
+  import('./JobsPane.jsx').then((m) => ({ default: m.JobsPane })),
+)
+const LeadsPane = lazy(() =>
+  import('./LeadsPane.jsx').then((m) => ({ default: m.LeadsPane })),
+)
+const SettingsPane = lazy(() =>
+  import('./SettingsPane.jsx').then((m) => ({ default: m.SettingsPane })),
+)
+const TicketsPane = lazy(() =>
+  import('./TicketsPane.jsx').then((m) => ({ default: m.TicketsPane })),
+)
 
 function SidebarIcon({ id, isActive = false }) {
   const secondaryClass = `w-4 h-4 shrink-0 ${isActive ? '' : 'text-sub'}`.trim()
@@ -231,6 +250,9 @@ export function WorkspaceShell({
   workspace,
   user,
   permissions,
+  permissionsRevision = 0,
+  permissionsToast = '',
+  onDismissPermissionsToast,
   activePane = 'dashboard',
   activeSubtab = '',
   onNavigatePane,
@@ -491,11 +513,38 @@ export function WorkspaceShell({
 
         {/* Main Content */}
         <main className="flex-1 pt-3 pb-6 px-3 sm:px-4 w-full">
-          {resolvedPane.status === 'active' && resolvedPane.paneId === 'settings' ? (
+          {permissionsToast ? (
+            <div
+              role="status"
+              aria-live="polite"
+              className="fixed bottom-4 right-4 z-50 brand-soft border crm-border rounded-xl px-4 py-2.5 shadow-lg flex items-center gap-3 text-xs font-medium max-w-sm"
+            >
+              <span>{permissionsToast}</span>
+              <button
+                type="button"
+                onClick={onDismissPermissionsToast}
+                className="text-sub hover:text-main text-[11px] font-semibold"
+                aria-label="Dismiss notification"
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
+          <Suspense
+            fallback={
+              <section className="max-w-4xl mx-auto my-6">
+                <Card className="p-5">
+                  <p className="text-xs text-sub">Loading view...</p>
+                </Card>
+              </section>
+            }
+          >
+            {resolvedPane.status === 'active' && resolvedPane.paneId === 'settings' ? (
             <SettingsPane
               workspace={workspace}
               user={user}
               permissions={permissions}
+              permissionsRevision={permissionsRevision}
               activeTab={resolvedPane.subtab}
               onTabChange={(nextTab) => selectPane('settings', nextTab)}
               onWorkspaceUpdated={onWorkspaceUpdated}
@@ -507,6 +556,7 @@ export function WorkspaceShell({
             <DashboardPane
               workspace={workspace}
               user={user}
+              permissionsRevision={permissionsRevision}
               activeTablesSummary={activeTablesSummary}
               onSelectPane={selectPane}
               onOpenRecord={handleOpenLinkedRecord}
@@ -521,6 +571,7 @@ export function WorkspaceShell({
                 workspace,
                 user,
                 permissions,
+                permissionsRevision,
                 initialInspectRequest:
                   inspectTarget?.paneId === resolvedPane.paneId ? inspectTarget : null,
                 onInspectRequestConsumed: handleInspectTargetConsumed,
@@ -537,6 +588,7 @@ export function WorkspaceShell({
                     {...crmProps}
                     activeSubtab={resolvedPane.subtab}
                     onSubtabChange={(nextTab) => selectPane('deals', nextTab)}
+                    onOpenPipelineSettings={() => selectPane('settings', 'pipelines')}
                   />
                 )
               }
@@ -655,6 +707,7 @@ export function WorkspaceShell({
               </Card>
             </section>
           )}
+          </Suspense>
         </main>
       </div>
 

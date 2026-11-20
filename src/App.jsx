@@ -1,17 +1,43 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { AuthCardShell } from './components/AuthCardShell.jsx'
 import { Button } from './components/Button.jsx'
 import { CrmTooltipLayer } from './components/CrmTooltipLayer.jsx'
 import { FeedbackNotice } from './components/FeedbackNotice.jsx'
-import { AcceptInviteScreen } from './screens/AcceptInviteScreen.jsx'
-import { ForgotPasswordScreen } from './screens/ForgotPasswordScreen.jsx'
 import { LoginScreen } from './screens/LoginScreen.jsx'
-import { ResetPasswordScreen } from './screens/ResetPasswordScreen.jsx'
 import { SignupScreen } from './screens/SignupScreen.jsx'
-import { VerifyEmailScreen } from './screens/VerifyEmailScreen.jsx'
-import { WorkspaceShell } from './screens/WorkspaceShell.jsx'
-import { apiPost, fetchAuthSession } from './utils/api.js'
+import {
+  apiGet,
+  apiPost,
+  fetchAuthSession,
+  subscribePermissionsVersion,
+} from './utils/api.js'
 import { buildWorkspacePath } from './utils/catalog.js'
+
+const AcceptInviteScreen = lazy(() =>
+  import('./screens/AcceptInviteScreen.jsx').then((m) => ({
+    default: m.AcceptInviteScreen,
+  })),
+)
+const ForgotPasswordScreen = lazy(() =>
+  import('./screens/ForgotPasswordScreen.jsx').then((m) => ({
+    default: m.ForgotPasswordScreen,
+  })),
+)
+const ResetPasswordScreen = lazy(() =>
+  import('./screens/ResetPasswordScreen.jsx').then((m) => ({
+    default: m.ResetPasswordScreen,
+  })),
+)
+const VerifyEmailScreen = lazy(() =>
+  import('./screens/VerifyEmailScreen.jsx').then((m) => ({
+    default: m.VerifyEmailScreen,
+  })),
+)
+const WorkspaceShell = lazy(() =>
+  import('./screens/WorkspaceShell.jsx').then((m) => ({
+    default: m.WorkspaceShell,
+  })),
+)
 
 const AUTH_ROUTES = new Set([
   '',
@@ -80,6 +106,37 @@ function App() {
   const [sessionNotice, setSessionNotice] = useState('')
   const [resendFeedback, setResendFeedback] = useState('')
   const [resending, setResending] = useState(false)
+  const [permissionsRevision, setPermissionsRevision] = useState(0)
+  const [permissionsToast, setPermissionsToast] = useState('')
+  const permissionsVersionRef = useRef('')
+  const syncInFlightRef = useRef(false)
+  const toastTimerRef = useRef(null)
+
+  const currentPermissionsVersion =
+    workspaceData?.permissions_version ||
+    workspaceData?.permissions?.permissions_version ||
+    ''
+
+  useEffect(() => {
+    permissionsVersionRef.current = currentPermissionsVersion
+  }, [currentPermissionsVersion])
+
+  const showPermissionsToast = useCallback((message) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current)
+    }
+    setPermissionsToast(message)
+    toastTimerRef.current = setTimeout(() => {
+      setPermissionsToast('')
+      toastTimerRef.current = null
+    }, 4500)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    }
+  }, [])
 
   const activeSlug = routeState.slug
   const isRecoveryRoute = !activeSlug && RECOVERY_ROUTES.has(routeState.route)
@@ -111,6 +168,10 @@ function App() {
   function handleWorkspaceUpdated(nextData) {
     if (!nextData) return
     const nextWorkspace = nextData.workspace || nextData
+    const nextPermVer =
+      nextData.permissions_version ||
+      nextData.permissions?.permissions_version ||
+      ''
     setWorkspaceData((prev) => {
       if (!prev) return prev
       return {
@@ -119,7 +180,9 @@ function App() {
           ...prev.workspace,
           ...nextWorkspace,
         },
+        ...(nextData.role ? { role: nextData.role } : {}),
         ...(nextData.permissions ? { permissions: nextData.permissions } : {}),
+        ...(nextPermVer ? { permissions_version: nextPermVer } : {}),
         ...(nextData.user ? { user: { ...prev.user, ...nextData.user } } : {}),
       }
     })
@@ -326,7 +389,7 @@ function App() {
     )
   }
 
-  function handleSessionExpired(message = '') {
+  const handleSessionExpired = useCallback((message = '') => {
     setWorkspaceData(null)
     setFetchedSlugState({
       slug: null,
@@ -340,7 +403,99 @@ function App() {
     )
     window.history.replaceState({}, '', '/login')
     setRouteState(parseLocation(window.location))
-  }
+  }, [])
+
+  const syncLivePermissions = useCallback(
+    async ({ viaSession = false } = {}) => {
+      if (!activeSlug || !isAlreadyVerifiedForActiveSlug || syncInFlightRef.current) {
+        return
+      }
+      syncInFlightRef.current = true
+      try {
+        const result = viaSession
+          ? await fetchAuthSession()
+          : await apiGet(`/api/v1/workspaces/${encodeURIComponent(activeSlug)}/`)
+        const { response, data } = result
+        if (response.status === 401 || (viaSession && response.ok && data?.authenticated === false)) {
+          handleSessionExpired(data?.error || data?.detail)
+          return
+        }
+        if (!response.ok || !data?.permissions) return
+        const nextVersion =
+          data.permissions_version || data.permissions?.permissions_version || ''
+        if (nextVersion && nextVersion !== permissionsVersionRef.current) {
+          permissionsVersionRef.current = nextVersion
+          setWorkspaceData((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  workspace: {
+                    ...prev.workspace,
+                    ...(data.workspace || {}),
+                  },
+                  role: data.role || prev.role,
+                  permissions: data.permissions,
+                  permissions_version: nextVersion,
+                  ...(data.user ? { user: { ...prev.user, ...data.user } } : {}),
+                }
+              : data,
+          )
+          setPermissionsRevision((prev) => prev + 1)
+          const roleName = data.role?.name || data.permissions?.role_name || ''
+          showPermissionsToast(
+            roleName
+              ? `Your workspace permissions were updated (${roleName}).`
+              : 'Your workspace permissions were updated.',
+          )
+        }
+      } catch {
+        // Ignore transient network failures during background permission sync.
+      } finally {
+        syncInFlightRef.current = false
+      }
+    },
+    [
+      activeSlug,
+      isAlreadyVerifiedForActiveSlug,
+      handleSessionExpired,
+      showPermissionsToast,
+    ],
+  )
+
+  useEffect(() => {
+    if (!activeSlug || !isAlreadyVerifiedForActiveSlug) return undefined
+
+    const unsubscribe = subscribePermissionsVersion((incomingVersion) => {
+      if (
+        incomingVersion &&
+        permissionsVersionRef.current &&
+        incomingVersion !== permissionsVersionRef.current
+      ) {
+        syncLivePermissions({ viaSession: false })
+      }
+    })
+
+    function handleFocusOrVisible() {
+      if (document.visibilityState === 'visible') {
+        syncLivePermissions({ viaSession: true })
+      }
+    }
+
+    window.addEventListener('focus', handleFocusOrVisible)
+    document.addEventListener('visibilitychange', handleFocusOrVisible)
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        syncLivePermissions({ viaSession: true })
+      }
+    }, 12000)
+
+    return () => {
+      unsubscribe()
+      window.removeEventListener('focus', handleFocusOrVisible)
+      document.removeEventListener('visibilitychange', handleFocusOrVisible)
+      window.clearInterval(intervalId)
+    }
+  }, [activeSlug, isAlreadyVerifiedForActiveSlug, syncLivePermissions])
 
   async function handleLogout() {
     try {
@@ -530,6 +685,9 @@ function App() {
         }
         user={workspaceData?.user}
         permissions={workspaceData?.permissions}
+        permissionsRevision={permissionsRevision}
+        permissionsToast={permissionsToast}
+        onDismissPermissionsToast={() => setPermissionsToast('')}
         activePane={routeState.pane || 'dashboard'}
         activeSubtab={routeState.subtab || ''}
         onNavigatePane={handleNavigatePane}
@@ -544,7 +702,17 @@ function App() {
 
   return (
     <>
-      {renderContent()}
+      <Suspense
+        fallback={
+          <AuthCardShell
+            eyebrow="jojoCRM"
+            title="Loading view..."
+            subtitle="Preparing the requested screen."
+          />
+        }
+      >
+        {renderContent()}
+      </Suspense>
       <CrmTooltipLayer />
     </>
   )
