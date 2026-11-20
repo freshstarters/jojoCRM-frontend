@@ -1,10 +1,11 @@
-import { formatGhs } from '../../utils/formatters.js'
+import { formatDateTime, formatGhs } from '../../utils/formatters.js'
 import { Button } from '../Button.jsx'
 
 export function RecordLinksSection({
   linkedRecords,
   contactLabel = 'Contact',
   contactPluralLabel = '',
+  userTimezone = 'Africa/Accra',
   onOpenRecord,
 }) {
   if (!linkedRecords) return null
@@ -90,6 +91,23 @@ export function RecordLinksSection({
         recordId: a.id,
         label: a.title,
         meta: a.status,
+      })),
+    })
+  }
+
+  if (Array.isArray(linkedRecords.visits) && linkedRecords.visits.length > 0) {
+    groups.push({
+      title: 'Visits',
+      items: linkedRecords.visits.map((v) => ({
+        paneId: 'visits',
+        recordId: v.id,
+        label: v.reason,
+        meta: [
+          v.date ? formatDateTime(v.date, userTimezone) : '',
+          v.follow_up ? 'Follow-up noted' : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
       })),
     })
   }

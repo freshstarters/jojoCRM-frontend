@@ -8,6 +8,7 @@ import { Button } from '../Button.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { Select } from '../Select.jsx'
+import { RecordRelationPicker } from './RecordRelationPicker.jsx'
 
 const FALLBACK_STAGE_OPTIONS = [
   { value: 'New', label: 'New' },
@@ -17,6 +18,34 @@ const FALLBACK_STAGE_OPTIONS = [
   { value: 'Lost', label: 'Lost' },
 ]
 
+function normalizeContactOption(item) {
+  if (!item) return null
+  return {
+    id: item.id,
+    record_code: item.record_code,
+    name: item.name || item.display_label || '',
+    title: item.title || '',
+    email: item.email || '',
+    phone: item.phone || '',
+    account_id: item.account_id ?? item.account?.id ?? null,
+    account_name: item.account_name || item.account?.name || '',
+    match_reasons: item.match_reasons || [],
+  }
+}
+
+function normalizeAccountOption(item) {
+  if (!item) return null
+  return {
+    id: item.id,
+    record_code: item.record_code,
+    name: item.name || item.display_label || '',
+    city: item.city || '',
+    email: item.email || '',
+    phone: item.phone || '',
+    match_reasons: item.match_reasons || [],
+  }
+}
+
 function ConvertLeadModalContent({
   onClose,
   workspaceSlug,
@@ -25,14 +54,13 @@ function ConvertLeadModalContent({
   onConverted,
   onSessionExpired,
 }) {
-  const [leadSearch, setLeadSearch] = useState('')
-  const [completedLeadsKey, setCompletedLeadsKey] = useState('')
-  const [leadOptionsList, setLeadOptionsList] = useState(() =>
-    initialLead ? [initialLead] : [],
-  )
   const [selectedLeadId, setSelectedLeadId] = useState(() =>
     initialLead?.id ? String(initialLead.id) : '',
   )
+  const [pickedLeadsById, setPickedLeadsById] = useState(() =>
+    initialLead?.id ? { [String(initialLead.id)]: initialLead } : {},
+  )
+  const [initialLeadsFetched, setInitialLeadsFetched] = useState(Boolean(initialLead?.id))
 
   const [completedPreviewKey, setCompletedPreviewKey] = useState('')
   const [previewData, setPreviewData] = useState(null)
@@ -40,10 +68,7 @@ function ConvertLeadModalContent({
 
   const [accountMode, setAccountMode] = useState('create')
   const [selectedAccountId, setSelectedAccountId] = useState('')
-  const [accountSearch, setAccountSearch] = useState('')
-  const [searchedAccounts, setSearchedAccounts] = useState([])
-  const [completedAccSearchKey, setCompletedAccSearchKey] = useState('')
-  const [showAccountSearch, setShowAccountSearch] = useState(false)
+  const [pickedAccountsById, setPickedAccountsById] = useState({})
   const [accountName, setAccountName] = useState(
     () => (initialLead?.company || '').trim() || initialLead?.name || '',
   )
@@ -51,10 +76,7 @@ function ConvertLeadModalContent({
 
   const [contactMode, setContactMode] = useState('create')
   const [selectedContactId, setSelectedContactId] = useState('')
-  const [contactSearch, setContactSearch] = useState('')
-  const [searchedContacts, setSearchedContacts] = useState([])
-  const [completedConSearchKey, setCompletedConSearchKey] = useState('')
-  const [showContactSearch, setShowContactSearch] = useState(false)
+  const [pickedContactsById, setPickedContactsById] = useState({})
   const [contactName, setContactName] = useState(() => initialLead?.name || '')
   const [contactTitle, setContactTitle] = useState('')
 
@@ -71,21 +93,12 @@ function ConvertLeadModalContent({
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
 
-  const leadsRequestKey = workspaceSlug
-    ? `${workspaceSlug}:${leadSearch.trim()}:${initialLead?.id || ''}`
-    : ''
-  const leadsLoading = Boolean(leadsRequestKey && completedLeadsKey !== leadsRequestKey)
-
+  // When opened without a pre-selected lead (e.g. from Deals pane), pre-select the first open lead.
   useEffect(() => {
-    if (!leadsRequestKey) return undefined
+    if (initialLeadsFetched || !workspaceSlug) return undefined
     let cancelled = false
-    const activeKey = leadsRequestKey
 
-    listCrmRecords(workspaceSlug, 'lead', {
-      page: 1,
-      page_size: 50,
-      ...(leadSearch.trim() ? { q: leadSearch.trim() } : {}),
-    })
+    listCrmRecords(workspaceSlug, 'lead', { page: 1, page_size: 25 })
       .then(({ response, data }) => {
         if (cancelled) return
         if (!response.ok) {
@@ -97,25 +110,11 @@ function ConvertLeadModalContent({
           return
         }
         const fetched = Array.isArray(data?.results) ? data.results : []
-        const merged =
-          initialLead && !fetched.some((row) => row.id === initialLead.id)
-            ? [initialLead, ...fetched]
-            : fetched
-        setLeadOptionsList(merged)
-        setSelectedLeadId((prev) => {
-          if (prev && merged.some((row) => String(row.id) === prev)) {
-            return prev
-          }
-          if (initialLead?.id && merged.some((row) => row.id === initialLead.id)) {
-            return String(initialLead.id)
-          }
-          const firstOpen = merged.find((row) => row.status === 'open')
-          return firstOpen
-            ? String(firstOpen.id)
-            : merged[0]
-              ? String(merged[0].id)
-              : ''
-        })
+        if (fetched.length > 0) {
+          const firstOpen = fetched.find((row) => row.status === 'open') || fetched[0]
+          setPickedLeadsById((prev) => ({ ...prev, [String(firstOpen.id)]: firstOpen }))
+          setSelectedLeadId((prev) => prev || String(firstOpen.id))
+        }
       })
       .catch(() => {
         if (!cancelled) {
@@ -124,22 +123,25 @@ function ConvertLeadModalContent({
       })
       .finally(() => {
         if (!cancelled) {
-          setCompletedLeadsKey(activeKey)
+          setInitialLeadsFetched(true)
         }
       })
 
     return () => {
       cancelled = true
     }
-  }, [leadsRequestKey, workspaceSlug, leadSearch, initialLead, onSessionExpired])
+  }, [initialLeadsFetched, workspaceSlug, onSessionExpired])
 
   const selectedLead = useMemo(() => {
     if (!selectedLeadId) return null
     return (
-      leadOptionsList.find((row) => String(row.id) === selectedLeadId) ||
+      (previewData?.lead && String(previewData.lead.id) === selectedLeadId
+        ? previewData.lead
+        : null) ||
+      pickedLeadsById[selectedLeadId] ||
       (initialLead && String(initialLead.id) === selectedLeadId ? initialLead : null)
     )
-  }, [leadOptionsList, selectedLeadId, initialLead])
+  }, [selectedLeadId, previewData?.lead, pickedLeadsById, initialLead])
 
   const previewRequestKey =
     workspaceSlug && selectedLeadId ? `${workspaceSlug}:${selectedLeadId}` : ''
@@ -196,19 +198,11 @@ function ConvertLeadModalContent({
         )
         setAccountName(nextAccName)
         setAccountCity(defaults.account_city || '')
-        setShowAccountSearch(
-          resolvedAccMode === 'reuse' && !lockedByConAccId && !firstAccMatch,
-        )
-        setAccountSearch('')
-        setSearchedAccounts([])
 
         setContactMode(defaultConMode)
         setSelectedContactId(firstConMatch?.id ? String(firstConMatch.id) : '')
         setContactName(defaults.contact_name || '')
         setContactTitle(defaults.contact_title || '')
-        setShowContactSearch(defaultConMode === 'reuse' && !firstConMatch)
-        setContactSearch('')
-        setSearchedContacts([])
 
         const resolvedDealAccountTitle =
           (lockedByConAccId && firstConMatch?.account_name) ||
@@ -252,151 +246,54 @@ function ConvertLeadModalContent({
     }
   }, [previewRequestKey, workspaceSlug, selectedLeadId, onSessionExpired])
 
-  const accSearchKey =
-    workspaceSlug && showAccountSearch ? `${workspaceSlug}:acc:${accountSearch.trim()}` : ''
-  const searchingAccounts = Boolean(
-    accSearchKey && completedAccSearchKey !== accSearchKey,
-  )
-
-  useEffect(() => {
-    if (!accSearchKey) return undefined
-    let cancelled = false
-    const activeKey = accSearchKey
-
-    listCrmRecords(workspaceSlug, 'account', {
-      page: 1,
-      page_size: 25,
-      ...(accountSearch.trim() ? { q: accountSearch.trim() } : {}),
-    })
-      .then(({ response, data }) => {
-        if (cancelled) return
-        if (response.status === 401) {
-          onSessionExpired?.(data?.error || data?.detail)
-          return
-        }
-        if (response.ok) {
-          setSearchedAccounts(Array.isArray(data?.results) ? data.results : [])
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setCompletedAccSearchKey(activeKey)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [accSearchKey, workspaceSlug, accountSearch, onSessionExpired])
-
-  const conSearchKey =
-    workspaceSlug && showContactSearch ? `${workspaceSlug}:con:${contactSearch.trim()}` : ''
-  const searchingContacts = Boolean(
-    conSearchKey && completedConSearchKey !== conSearchKey,
-  )
-
-  useEffect(() => {
-    if (!conSearchKey) return undefined
-    let cancelled = false
-    const activeKey = conSearchKey
-
-    listCrmRecords(workspaceSlug, 'contact', {
-      page: 1,
-      page_size: 25,
-      ...(contactSearch.trim() ? { q: contactSearch.trim() } : {}),
-    })
-      .then(({ response, data }) => {
-        if (cancelled) return
-        if (response.status === 401) {
-          onSessionExpired?.(data?.error || data?.detail)
-          return
-        }
-        if (response.ok) {
-          setSearchedContacts(Array.isArray(data?.results) ? data.results : [])
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setCompletedConSearchKey(activeKey)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [conSearchKey, workspaceSlug, contactSearch, onSessionExpired])
-
   const accountMatches = useMemo(
-    () => previewData?.account_matches || [],
+    () => (previewData?.account_matches || []).map(normalizeAccountOption),
     [previewData?.account_matches],
   )
   const contactMatches = useMemo(
-    () => previewData?.contact_matches || [],
+    () => (previewData?.contact_matches || []).map(normalizeContactOption),
     [previewData?.contact_matches],
   )
 
-  const combinedContacts = useMemo(() => {
-    const byId = new Map()
-    for (const c of contactMatches) byId.set(String(c.id), c)
-    for (const c of searchedContacts) {
-      if (!byId.has(String(c.id))) {
-        byId.set(String(c.id), {
-          id: c.id,
-          record_code: c.record_code,
-          name: c.name,
-          title: c.title,
-          email: c.email,
-          phone: c.phone,
-          account_id: c.account_id,
-          account_name: c.account?.name || '',
-          match_reasons: [],
-        })
-      }
-    }
-    return Array.from(byId.values())
-  }, [contactMatches, searchedContacts])
-
   const selectedReusedContact = useMemo(() => {
     if (contactMode !== 'reuse' || !selectedContactId) return null
-    return combinedContacts.find((c) => String(c.id) === selectedContactId) || null
-  }, [contactMode, selectedContactId, combinedContacts])
+    return (
+      pickedContactsById[selectedContactId] ||
+      contactMatches.find((c) => String(c.id) === selectedContactId) ||
+      null
+    )
+  }, [contactMode, selectedContactId, pickedContactsById, contactMatches])
 
   const lockedAccountId = selectedReusedContact?.account_id
     ? String(selectedReusedContact.account_id)
     : ''
-
-  const combinedAccounts = useMemo(() => {
-    const byId = new Map()
-    for (const a of accountMatches) byId.set(String(a.id), a)
-    for (const a of searchedAccounts) {
-      if (!byId.has(String(a.id))) {
-        byId.set(String(a.id), {
-          id: a.id,
-          record_code: a.record_code,
-          name: a.name,
-          city: a.city,
-          email: a.email,
-          phone: a.phone,
-          match_reasons: [],
-        })
-      }
-    }
-    if (lockedAccountId && !byId.has(lockedAccountId) && selectedReusedContact) {
-      byId.set(lockedAccountId, {
-        id: Number(lockedAccountId),
-        name: selectedReusedContact.account_name || `Account #${lockedAccountId}`,
-        city: '',
-        match_reasons: [`Linked to ${selectedReusedContact.name}`],
-      })
-    }
-    return Array.from(byId.values())
-  }, [accountMatches, searchedAccounts, lockedAccountId, selectedReusedContact])
 
   const effectiveAccountMode = lockedAccountId ? 'reuse' : accountMode
   const effectiveAccountId = lockedAccountId || selectedAccountId
 
   const selectedReusedAccount = useMemo(() => {
     if (effectiveAccountMode !== 'reuse' || !effectiveAccountId) return null
-    return combinedAccounts.find((a) => String(a.id) === effectiveAccountId) || null
-  }, [effectiveAccountMode, effectiveAccountId, combinedAccounts])
+    const fromCache =
+      pickedAccountsById[effectiveAccountId] ||
+      accountMatches.find((a) => String(a.id) === effectiveAccountId)
+    if (fromCache) return fromCache
+    if (lockedAccountId && selectedReusedContact) {
+      return {
+        id: Number(lockedAccountId),
+        name: selectedReusedContact.account_name || `Account #${lockedAccountId}`,
+        city: '',
+        match_reasons: [`Linked to ${selectedReusedContact.name}`],
+      }
+    }
+    return null
+  }, [
+    effectiveAccountMode,
+    effectiveAccountId,
+    pickedAccountsById,
+    accountMatches,
+    lockedAccountId,
+    selectedReusedContact,
+  ])
 
   function syncDefaultDealTitle(nextAccName) {
     if (!dealTitleDirty && nextAccName) {
@@ -404,21 +301,45 @@ function ConvertLeadModalContent({
     }
   }
 
-  function handleAccountSelect(nextId) {
+  function handleAccountSelect(nextId, pickedRecord = null) {
     setSelectedAccountId(nextId)
-    const found = combinedAccounts.find((a) => String(a.id) === nextId)
+    const normalized = pickedRecord ? normalizeAccountOption(pickedRecord) : null
+    if (normalized?.id) {
+      setPickedAccountsById((prev) => ({ ...prev, [String(normalized.id)]: normalized }))
+    }
+    const found =
+      normalized ||
+      pickedAccountsById[nextId] ||
+      accountMatches.find((a) => String(a.id) === nextId)
     if (found?.name) {
       syncDefaultDealTitle(found.name)
     }
   }
 
-  function handleContactSelect(nextId) {
+  function handleContactSelect(nextId, pickedRecord = null) {
     setSelectedContactId(nextId)
-    const found = combinedContacts.find((c) => String(c.id) === nextId)
+    const normalized = pickedRecord ? normalizeContactOption(pickedRecord) : null
+    if (normalized?.id) {
+      setPickedContactsById((prev) => ({ ...prev, [String(normalized.id)]: normalized }))
+    }
+    const found =
+      normalized ||
+      pickedContactsById[nextId] ||
+      contactMatches.find((c) => String(c.id) === nextId)
     if (found?.account_id) {
       setAccountMode('reuse')
-      setSelectedAccountId(String(found.account_id))
+      const linkedAccId = String(found.account_id)
+      setSelectedAccountId(linkedAccId)
       if (found.account_name) {
+        setPickedAccountsById((prev) => ({
+          ...prev,
+          [linkedAccId]: {
+            id: Number(found.account_id),
+            name: found.account_name,
+            city: '',
+            match_reasons: [],
+          },
+        }))
         syncDefaultDealTitle(found.account_name)
       }
     }
@@ -435,44 +356,7 @@ function ConvertLeadModalContent({
     return FALLBACK_STAGE_OPTIONS
   }, [previewData?.deal_stages])
 
-  const leadSelectOptions = useMemo(() => {
-    if (leadOptionsList.length === 0) {
-      return [{ value: '', label: leadsLoading ? 'Loading leads...' : 'No leads available' }]
-    }
-    return leadOptionsList.map((lead) => ({
-      value: String(lead.id),
-      label: `${lead.name}${lead.company ? ` — ${lead.company}` : ''} (${
-        lead.status === 'converted' ? 'Already Converted' : 'Open Lead'
-      })`,
-    }))
-  }, [leadOptionsList, leadsLoading])
-
-  const accountReuseOptions = useMemo(() => {
-    if (combinedAccounts.length === 0) {
-      return [{ value: '', label: 'Search or pick an Account' }]
-    }
-    return combinedAccounts.map((acc) => ({
-      value: String(acc.id),
-      label: `${acc.name}${acc.city ? ` (${acc.city})` : ''}${
-        acc.match_reasons?.length ? ` · Match: ${acc.match_reasons.join(', ')}` : ''
-      }`,
-    }))
-  }, [combinedAccounts])
-
   const canUpdateContact = previewData?.capabilities?.can_update_contact !== false
-
-  const contactReuseOptions = useMemo(() => {
-    if (combinedContacts.length === 0) {
-      return [{ value: '', label: `Search or pick a ${contactLabel}` }]
-    }
-    return combinedContacts.map((con) => ({
-      value: String(con.id),
-      label: `${con.name}${con.account_name ? ` (${con.account_name})` : ' (Standalone)'}${
-        con.match_reasons?.length ? ` · Match: ${con.match_reasons.join(', ')}` : ''
-      }${!con.account_id && !canUpdateContact ? ` · Requires ${contactLabel} update` : ''}`,
-    }))
-  }, [combinedContacts, contactLabel, canUpdateContact])
-
   const capabilities = previewData?.capabilities || {}
   const isConverted = Boolean(
     previewData?.already_converted || selectedLead?.status === 'converted',
@@ -611,31 +495,39 @@ function ConvertLeadModalContent({
       >
         <FeedbackNotice tone="danger" message={submitError || previewError} />
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="convert-lead-select" className="font-medium text-body">
-              Select Lead
-            </label>
-            <input
-              type="search"
-              value={leadSearch}
-              onChange={(e) => setLeadSearch(e.target.value)}
-              placeholder="Search leads..."
-              aria-label="Search leads to convert"
-              disabled={submitting}
-              className="crm-input px-2.5 py-1 text-[11px] w-44"
-            />
-          </div>
-          <Select
+        {/* Server-backed searchable & paginated Lead picker */}
+        <div className="space-y-1.5">
+          <label htmlFor="convert-lead-select" className="block font-medium text-body">
+            Select Lead
+          </label>
+          <RecordRelationPicker
             id="convert-lead-select"
             ariaLabel="Select lead to convert"
+            workspaceSlug={workspaceSlug}
+            objectKey="lead"
+            objectPluralLabel="Leads"
             value={selectedLeadId}
-            onChange={(val) => {
+            selectedRecord={selectedLead}
+            allowEmpty={false}
+            placeholder={!initialLeadsFetched ? 'Loading leads...' : 'Search or pick a Lead...'}
+            searchPlaceholder="Search all workspace Leads..."
+            getOptionLabel={(lead) =>
+              `${lead.name || lead.display_label}${lead.company ? ` — ${lead.company}` : ''}`
+            }
+            getOptionMeta={(lead) => [lead.email, lead.phone].filter(Boolean).join(' · ')}
+            getOptionBadge={(lead) => ({
+              label: lead.status === 'converted' ? 'Converted' : 'Open',
+              className: lead.status === 'converted' ? 'badge badge-danger' : 'badge badge-success',
+            })}
+            onChange={(val, rec) => {
               setSubmitError('')
+              if (rec?.id) {
+                setPickedLeadsById((prev) => ({ ...prev, [String(rec.id)]: rec }))
+              }
               setSelectedLeadId(val)
             }}
-            options={leadSelectOptions}
-            disabled={submitting || leadOptionsList.length === 0}
+            disabled={submitting}
+            onSessionExpired={onSessionExpired}
           />
         </div>
 
@@ -677,6 +569,7 @@ function ConvertLeadModalContent({
 
         {selectedLead && !previewLoading ? (
           <>
+            {/* Account section */}
             <div className="space-y-2 pt-2 border-t crm-border">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -711,9 +604,6 @@ function ConvertLeadModalContent({
                     disabled={submitting || capabilities.can_reuse_account === false}
                     onClick={() => {
                       setAccountMode('reuse')
-                      if (!effectiveAccountId && combinedAccounts.length === 0) {
-                        setShowAccountSearch(true)
-                      }
                       if (selectedReusedAccount?.name) {
                         syncDefaultDealTitle(selectedReusedAccount.name)
                       }
@@ -775,46 +665,39 @@ function ConvertLeadModalContent({
                   </div>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  <Select
-                    id="convert-account-reuse"
-                    ariaLabel="Reuse existing Account"
-                    value={effectiveAccountId}
-                    onChange={handleAccountSelect}
-                    options={accountReuseOptions}
-                    disabled={submitting || Boolean(lockedAccountId)}
-                  />
-                  {!lockedAccountId ? (
-                    <div className="flex items-center gap-2">
-                      {!showAccountSearch ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setShowAccountSearch(true)}
-                          className="text-[11px]"
-                        >
-                          Search all workspace Accounts
-                        </Button>
-                      ) : (
-                        <input
-                          type="search"
-                          value={accountSearch}
-                          onChange={(e) => setAccountSearch(e.target.value)}
-                          placeholder={
-                            searchingAccounts
-                              ? 'Searching Accounts...'
-                              : 'Search any existing Account...'
-                          }
-                          aria-label="Search existing Accounts"
-                          className="crm-input w-full px-2.5 py-1.5 text-[11px]"
-                        />
-                      )}
-                    </div>
-                  ) : null}
-                </div>
+                <RecordRelationPicker
+                  id="convert-account-reuse"
+                  ariaLabel="Reuse existing Account"
+                  workspaceSlug={workspaceSlug}
+                  objectKey="account"
+                  objectPluralLabel="Accounts"
+                  value={effectiveAccountId}
+                  selectedRecord={selectedReusedAccount}
+                  suggestedItems={accountMatches}
+                  suggestedHeading="Suggested matches"
+                  allowEmpty={false}
+                  placeholder="Search or pick an existing Account..."
+                  searchPlaceholder="Search all workspace Accounts..."
+                  getOptionLabel={(acc) =>
+                    `${acc.name || acc.display_label}${acc.city ? ` (${acc.city})` : ''}`
+                  }
+                  getOptionMeta={(acc) =>
+                    [
+                      acc.match_reasons?.length ? `Match: ${acc.match_reasons.join(', ')}` : '',
+                      acc.email,
+                      acc.phone,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')
+                  }
+                  onChange={handleAccountSelect}
+                  disabled={submitting || Boolean(lockedAccountId)}
+                  onSessionExpired={onSessionExpired}
+                />
               )}
             </div>
 
+            {/* Contact section */}
             <div className="space-y-2 pt-2 border-t crm-border">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
@@ -842,9 +725,6 @@ function ConvertLeadModalContent({
                     disabled={submitting || capabilities.can_reuse_contact === false}
                     onClick={() => {
                       setContactMode('reuse')
-                      if (!selectedContactId && combinedContacts.length === 0) {
-                        setShowContactSearch(true)
-                      }
                       if (selectedContactId) {
                         handleContactSelect(selectedContactId)
                       }
@@ -895,13 +775,41 @@ function ConvertLeadModalContent({
                 </div>
               ) : (
                 <div className="space-y-2">
-                  <Select
+                  <RecordRelationPicker
                     id="convert-contact-reuse"
                     ariaLabel={`Reuse existing ${contactLabel}`}
+                    workspaceSlug={workspaceSlug}
+                    objectKey="contact"
+                    objectPluralLabel={`${contactLabel}s`}
                     value={selectedContactId}
+                    selectedRecord={selectedReusedContact}
+                    suggestedItems={contactMatches}
+                    suggestedHeading="Suggested matches"
+                    allowEmpty={false}
+                    placeholder={`Search or pick an existing ${contactLabel}...`}
+                    searchPlaceholder={`Search all workspace ${contactLabel}s...`}
+                    getOptionLabel={(con) => {
+                      const accName = con.account?.name || con.account_name
+                      return `${con.name || con.display_label}${
+                        accName ? ` (${accName})` : ' (Standalone)'
+                      }`
+                    }}
+                    getOptionMeta={(con) => {
+                      const hasAcc = Boolean(con.account_id || con.account?.id)
+                      return [
+                        con.match_reasons?.length ? `Match: ${con.match_reasons.join(', ')}` : '',
+                        !hasAcc && !canUpdateContact
+                          ? `Requires ${contactLabel} update permission`
+                          : '',
+                        con.email,
+                        con.phone,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    }}
                     onChange={handleContactSelect}
-                    options={contactReuseOptions}
                     disabled={submitting}
+                    onSessionExpired={onSessionExpired}
                   />
                   {cannotLinkStandaloneContact ? (
                     <FeedbackNotice
@@ -909,35 +817,11 @@ function ConvertLeadModalContent({
                       message={`Linking standalone ${contactLabel} "${selectedReusedContact.name}" to an Account requires ${contactLabel} update permission. Select a ${contactLabel} already on an Account or create a new one.`}
                     />
                   ) : null}
-                  <div className="flex items-center gap-2">
-                    {!showContactSearch ? (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={() => setShowContactSearch(true)}
-                        className="text-[11px]"
-                      >
-                        Search all workspace {contactLabel}s
-                      </Button>
-                    ) : (
-                      <input
-                        type="search"
-                        value={contactSearch}
-                        onChange={(e) => setContactSearch(e.target.value)}
-                        placeholder={
-                          searchingContacts
-                            ? `Searching ${contactLabel}s...`
-                            : `Search any existing ${contactLabel}...`
-                        }
-                        aria-label={`Search existing ${contactLabel}s`}
-                        className="crm-input w-full px-2.5 py-1.5 text-[11px]"
-                      />
-                    )}
-                  </div>
                 </div>
               )}
             </div>
 
+            {/* Deal section */}
             <div className="space-y-3 pt-2 border-t crm-border">
               <div className="font-semibold text-main">Deal</div>
               <div>
