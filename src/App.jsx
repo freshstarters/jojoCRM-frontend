@@ -11,7 +11,10 @@ import {
   fetchAuthSession,
   subscribePermissionsVersion,
 } from './utils/api.js'
-import { buildWorkspacePath } from './utils/catalog.js'
+import {
+  INSPECTABLE_OBJECT_PANES,
+  buildWorkspacePath,
+} from './utils/catalog.js'
 
 const AcceptInviteScreen = lazy(() =>
   import('./screens/AcceptInviteScreen.jsx').then((m) => ({
@@ -59,6 +62,27 @@ function safeDecodeSegment(value) {
   }
 }
 
+function parseInspectParam(rawInspect) {
+  const cleaned = String(rawInspect || '').trim()
+  if (!cleaned) {
+    return { inspectId: null, inspectPane: '' }
+  }
+  if (/^\d+$/.test(cleaned)) {
+    const num = Number(cleaned)
+    return { inspectId: num > 0 ? num : null, inspectPane: '' }
+  }
+  const match = cleaned.match(/^([a-zA-Z_-]+):(\d+)$/)
+  if (match) {
+    const mappedPane = INSPECTABLE_OBJECT_PANES[match[1].toLowerCase()] || ''
+    const num = Number(match[2])
+    return {
+      inspectId: num > 0 ? num : null,
+      inspectPane: mappedPane,
+    }
+  }
+  return { inspectId: null, inspectPane: '' }
+}
+
 function parseLocation(locationObj) {
   const pathname = locationObj?.pathname || '/'
   const search = locationObj?.search || ''
@@ -74,18 +98,23 @@ function parseLocation(locationObj) {
       slug: null,
       pane: '',
       subtab: '',
+      inspectId: null,
       token,
     }
   }
 
   const queryPane = params.get('pane') || ''
   const querySubtab = params.get('tab') || ''
+  const { inspectId, inspectPane } = parseInspectParam(params.get('inspect'))
+  const rawPane = safeDecodeSegment(segments[1] || queryPane || '').toLowerCase()
+  const resolvedPane = rawPane || inspectPane || 'dashboard'
 
   return {
     route: 'workspace',
     slug: safeDecodeSegment(firstSegment),
-    pane: safeDecodeSegment(segments[1] || queryPane || 'dashboard').toLowerCase(),
+    pane: resolvedPane,
     subtab: safeDecodeSegment(segments[2] || querySubtab || '').toLowerCase(),
+    inspectId,
     token: '',
   }
 }
@@ -159,10 +188,37 @@ function App() {
     setRouteState(parseLocation(window.location))
   }
 
-  function handleNavigatePane(paneId, subtabId = '') {
+  function handleNavigatePane(paneId, subtabId = '', options = {}) {
     if (!activeSlug) return
-    const nextPath = buildWorkspacePath(activeSlug, paneId, subtabId)
-    navigateTo(nextPath)
+    const nextPath = buildWorkspacePath(activeSlug, paneId, subtabId, {
+      inspect: options.inspect,
+    })
+    navigateTo(nextPath, { replace: Boolean(options.replace) })
+  }
+
+  function handleInspectRecord(recordId, options = {}) {
+    if (!activeSlug || !recordId) return
+    const targetPane = options.paneId || routeState.pane || 'dashboard'
+    const targetSubtab =
+      options.subtabId !== undefined
+        ? options.subtabId
+        : targetPane === routeState.pane
+          ? routeState.subtab || ''
+          : targetPane === 'deals'
+            ? 'kanban'
+            : ''
+    const nextPath = buildWorkspacePath(activeSlug, targetPane, targetSubtab, {
+      inspect: recordId,
+    })
+    navigateTo(nextPath, { replace: Boolean(options.replace) })
+  }
+
+  function handleCloseInspect(options = {}) {
+    if (!activeSlug) return
+    const currentPane = routeState.pane || 'dashboard'
+    const currentSubtab = routeState.subtab || ''
+    const nextPath = buildWorkspacePath(activeSlug, currentPane, currentSubtab)
+    navigateTo(nextPath, { replace: Boolean(options.replace) })
   }
 
   function handleWorkspaceUpdated(nextData) {
@@ -690,7 +746,10 @@ function App() {
         onDismissPermissionsToast={() => setPermissionsToast('')}
         activePane={routeState.pane || 'dashboard'}
         activeSubtab={routeState.subtab || ''}
+        inspectRecordId={routeState.inspectId ?? null}
         onNavigatePane={handleNavigatePane}
+        onInspectRecord={handleInspectRecord}
+        onCloseInspect={handleCloseInspect}
         onWorkspaceUpdated={handleWorkspaceUpdated}
         errorMessage={effectiveError}
         onLogout={handleLogout}

@@ -3,6 +3,7 @@ import { AuditLogDrawer } from '../components/AuditLogDrawer.jsx'
 import { Button } from '../components/Button.jsx'
 import { Card } from '../components/Card.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
+import { GlobalSearchBar } from '../components/GlobalSearchBar.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Subtabs } from '../components/Subtabs.jsx'
 import { ThemeToggleButton } from '../components/ThemeToggleButton.jsx'
@@ -38,6 +39,9 @@ const SettingsPane = lazy(() =>
 )
 const TicketsPane = lazy(() =>
   import('./TicketsPane.jsx').then((m) => ({ default: m.TicketsPane })),
+)
+const VisitsPane = lazy(() =>
+  import('./VisitsPane.jsx').then((m) => ({ default: m.VisitsPane })),
 )
 
 function SidebarIcon({ id, isActive = false }) {
@@ -255,7 +259,10 @@ export function WorkspaceShell({
   onDismissPermissionsToast,
   activePane = 'dashboard',
   activeSubtab = '',
+  inspectRecordId = null,
   onNavigatePane,
+  onInspectRecord,
+  onCloseInspect,
   onWorkspaceUpdated,
   errorMessage,
   onLogout,
@@ -267,15 +274,26 @@ export function WorkspaceShell({
   const [auditRefreshKey, setAuditRefreshKey] = useState(0)
   const [logoutModalOpen, setLogoutModalOpen] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
-  const [inspectTarget, setInspectTarget] = useState(null)
+  const [visitPrefill, setVisitPrefill] = useState(null)
+  const [visitPrefillNonce, setVisitPrefillNonce] = useState(0)
 
   const handleAuditRecorded = useCallback(() => {
     setAuditRefreshKey((prev) => prev + 1)
   }, [])
 
-  const handleInspectTargetConsumed = useCallback((nonce) => {
-    setInspectTarget((prev) => (prev?.nonce === nonce ? null : prev))
+  const handleClearVisitPrefill = useCallback(() => {
+    setVisitPrefill(null)
   }, [])
+
+  const handleStartRecordVisit = useCallback(
+    (prefill) => {
+      setMobileSidebarOpen(false)
+      setVisitPrefill(prefill || {})
+      setVisitPrefillNonce((prev) => prev + 1)
+      onNavigatePane?.('visits', '')
+    },
+    [onNavigatePane],
+  )
 
   const sidebarGroups = useMemo(
     () => buildSidebarGroups(workspace).filter((group) => group.visibleItems.length > 0),
@@ -304,23 +322,32 @@ export function WorkspaceShell({
 
   function selectPane(paneId, subtabId = '', options = {}) {
     setMobileSidebarOpen(false)
-    if (!options.keepInspectTarget) {
-      setInspectTarget(null)
-    }
-    onNavigatePane?.(paneId, subtabId)
+    onNavigatePane?.(paneId, subtabId, options)
   }
 
   function handleOpenLinkedRecord(paneId, recordId) {
-    setInspectTarget((prev) => ({
-      paneId,
-      recordId,
-      nonce: (prev?.nonce ?? 0) + 1,
-    }))
-    if (paneId === 'deals') {
-      selectPane('deals', 'list', { keepInspectTarget: true })
-    } else {
-      selectPane(paneId, '', { keepInspectTarget: true })
-    }
+    if (!paneId || !recordId) return
+    setMobileSidebarOpen(false)
+    const targetSubtab =
+      paneId === 'deals'
+        ? resolvedPane.paneId === 'deals' && resolvedPane.subtab
+          ? resolvedPane.subtab
+          : 'kanban'
+        : ''
+    onInspectRecord?.(recordId, { paneId, subtabId: targetSubtab })
+  }
+
+  function handleInspectInCurrentPane(recordId) {
+    if (!recordId) return
+    onInspectRecord?.(recordId, {
+      paneId: resolvedPane.paneId,
+      subtabId: resolvedPane.subtab,
+    })
+  }
+
+  function handleSelectGlobalSearchResult(hit) {
+    if (!hit?.inspect_pane_id || !hit?.inspect_record_id) return
+    handleOpenLinkedRecord(hit.inspect_pane_id, hit.inspect_record_id)
   }
 
   return (
@@ -440,7 +467,7 @@ export function WorkspaceShell({
                 <line x1="3" y1="18" x2="21" y2="18" />
               </svg>
             </Button>
-            <div className="flex items-center space-x-2 text-sm">
+            <div className="flex items-center space-x-2 text-sm shrink-0">
               <span className="text-sub hidden sm:inline">{workspaceName}</span>
               <span className="text-sub hidden sm:inline">/</span>
               <span className="font-semibold text-main">{activeEntryLabel}</span>
@@ -453,7 +480,15 @@ export function WorkspaceShell({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <GlobalSearchBar
+            workspace={workspace}
+            permissions={permissions}
+            permissionsRevision={permissionsRevision}
+            onSelectResult={handleSelectGlobalSearchResult}
+            onSessionExpired={onSessionExpired}
+          />
+
+          <div className="flex items-center space-x-2 shrink-0">
             {workspace?.business_type_label ? (
               <span className="badge badge-info hidden md:inline-flex">
                 {workspace.business_type_label}
@@ -563,7 +598,7 @@ export function WorkspaceShell({
               onSessionExpired={onSessionExpired}
             />
           ) : resolvedPane.status === 'active' &&
-            ['accounts', 'contacts', 'leads', 'deals', 'jobs', 'appointments', 'tickets'].includes(
+            ['accounts', 'contacts', 'leads', 'deals', 'jobs', 'appointments', 'visits', 'tickets'].includes(
               resolvedPane.paneId,
             ) ? (
             (() => {
@@ -572,15 +607,17 @@ export function WorkspaceShell({
                 user,
                 permissions,
                 permissionsRevision,
-                initialInspectRequest:
-                  inspectTarget?.paneId === resolvedPane.paneId ? inspectTarget : null,
-                onInspectRequestConsumed: handleInspectTargetConsumed,
+                urlInspectRecordId: inspectRecordId,
+                onInspectRecord: handleInspectInCurrentPane,
+                onCloseInspect,
                 onOpenLinkedRecord: handleOpenLinkedRecord,
                 onAuditRecorded: handleAuditRecorded,
                 onSessionExpired,
               }
               if (resolvedPane.paneId === 'accounts') return <AccountsPane {...crmProps} />
-              if (resolvedPane.paneId === 'contacts') return <ContactsPane {...crmProps} />
+              if (resolvedPane.paneId === 'contacts') {
+                return <ContactsPane {...crmProps} onRecordVisit={handleStartRecordVisit} />
+              }
               if (resolvedPane.paneId === 'leads') return <LeadsPane {...crmProps} />
               if (resolvedPane.paneId === 'deals') {
                 return (
@@ -594,7 +631,17 @@ export function WorkspaceShell({
               }
               if (resolvedPane.paneId === 'jobs') return <JobsPane {...crmProps} />
               if (resolvedPane.paneId === 'appointments') {
-                return <AppointmentsPane {...crmProps} />
+                return <AppointmentsPane {...crmProps} onRecordVisit={handleStartRecordVisit} />
+              }
+              if (resolvedPane.paneId === 'visits') {
+                return (
+                  <VisitsPane
+                    key={visitPrefillNonce}
+                    {...crmProps}
+                    prefillCreate={visitPrefill}
+                    onClearPrefillCreate={handleClearVisitPrefill}
+                  />
+                )
               }
               return <TicketsPane {...crmProps} />
             })()
@@ -719,6 +766,8 @@ export function WorkspaceShell({
         contactLabel={workspace?.contact_label || 'Contact'}
         canManageUsers={canManageUsers}
         refreshKey={auditRefreshKey}
+        permissionsRevision={permissionsRevision}
+        onInspectRecord={handleOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
       />
 
