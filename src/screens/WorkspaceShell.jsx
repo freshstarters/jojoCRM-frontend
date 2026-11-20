@@ -31,8 +31,14 @@ const DealsPane = lazy(() =>
 const JobsPane = lazy(() =>
   import('./JobsPane.jsx').then((m) => ({ default: m.JobsPane })),
 )
+const InvoicingPane = lazy(() =>
+  import('./InvoicingPane.jsx').then((m) => ({ default: m.InvoicingPane })),
+)
 const LeadsPane = lazy(() =>
   import('./LeadsPane.jsx').then((m) => ({ default: m.LeadsPane })),
+)
+const ProductsPane = lazy(() =>
+  import('./ProductsPane.jsx').then((m) => ({ default: m.ProductsPane })),
 )
 const SettingsPane = lazy(() =>
   import('./SettingsPane.jsx').then((m) => ({ default: m.SettingsPane })),
@@ -333,7 +339,9 @@ export function WorkspaceShell({
         ? resolvedPane.paneId === 'deals' && resolvedPane.subtab
           ? resolvedPane.subtab
           : 'kanban'
-        : ''
+        : paneId === 'invoicing'
+          ? 'invoices'
+          : ''
     onInspectRecord?.(recordId, { paneId, subtabId: targetSubtab })
   }
 
@@ -601,9 +609,18 @@ export function WorkspaceShell({
               onSessionExpired={onSessionExpired}
             />
           ) : resolvedPane.status === 'active' &&
-            ['accounts', 'contacts', 'leads', 'deals', 'jobs', 'appointments', 'visits', 'tickets'].includes(
-              resolvedPane.paneId,
-            ) ? (
+            [
+              'accounts',
+              'contacts',
+              'leads',
+              'deals',
+              'products',
+              'invoicing',
+              'jobs',
+              'appointments',
+              'visits',
+              'tickets',
+            ].includes(resolvedPane.paneId) ? (
             (() => {
               const crmProps = {
                 workspace,
@@ -629,6 +646,26 @@ export function WorkspaceShell({
                     activeSubtab={resolvedPane.subtab}
                     onSubtabChange={(nextTab) => selectPane('deals', nextTab)}
                     onOpenPipelineSettings={() => selectPane('settings', 'pipelines')}
+                    onOpenCreatedInvoice={(invoiceId) =>
+                      handleOpenLinkedRecord('invoicing', invoiceId)
+                    }
+                    onOpenCreatedJob={(jobId) =>
+                      handleOpenLinkedRecord('jobs', jobId)
+                    }
+                  />
+                )
+              }
+              if (resolvedPane.paneId === 'products') return <ProductsPane {...crmProps} />
+              if (resolvedPane.paneId === 'invoicing') {
+                return (
+                  <InvoicingPane
+                    {...crmProps}
+                    subtabs={resolvedPane.item?.subtabs || []}
+                    activeSubtab={resolvedPane.subtab}
+                    onSubtabChange={(nextTab) => selectPane('invoicing', nextTab)}
+                    onOpenInvoiceStatusSettings={() =>
+                      selectPane('settings', 'invoice-statuses')
+                    }
                   />
                 )
               }

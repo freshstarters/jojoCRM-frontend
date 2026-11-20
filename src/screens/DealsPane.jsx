@@ -12,10 +12,8 @@ import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { PipelineStageDistribution } from '../components/crm/PipelineStageDistribution.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
 import { RecordRelationPicker } from '../components/crm/RecordRelationPicker.jsx'
-import {
-  RecordSharingControl,
-  SharingBadge,
-} from '../components/crm/RecordSharingControl.jsx'
+import { RecordSharingControl, SharingBadge } from '../components/crm/RecordSharingControl.jsx'
+import { DealLineItemsSection } from '../components/invoicing/DealLineItemsSection.jsx'
 import { VISIBILITY_FILTER_OPTIONS } from '../utils/crmFormOptions.js'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
 import {
@@ -136,6 +134,8 @@ export function DealsPane({
   onInspectRecord,
   onCloseInspect,
   onOpenLinkedRecord,
+  onOpenCreatedInvoice,
+  onOpenCreatedJob,
   onAuditRecorded,
   onSessionExpired,
 }) {
@@ -1220,6 +1220,25 @@ export function DealsPane({
             />
           </div>
         ) : null}
+
+        <DealLineItemsSection
+          workspace={workspace}
+          workspaceSlug={workspaceSlug}
+          permissions={permissions}
+          deal={active}
+          products={pane.optionsData?.products || []}
+          canUpdateDeal={pane.rights.canUpdate}
+          onDealChanged={async () => {
+            setDraft(null)
+            await pane.refreshActiveRecord()
+            reloadBoard()
+            pane.reload()
+            onAuditRecorded?.()
+          }}
+          onOpenCreatedInvoice={onOpenCreatedInvoice}
+          onOpenCreatedJob={onOpenCreatedJob}
+          onSessionExpired={onSessionExpired}
+        />
       </RecordInspectorDrawer>
 
       {conversionEnabled ? (

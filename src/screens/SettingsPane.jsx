@@ -4,6 +4,7 @@ import { Card } from '../components/Card.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
+import { SettingsInvoiceStatusesSection } from '../components/SettingsInvoiceStatusesSection.jsx'
 import { SettingsPacksSection } from '../components/SettingsPacksSection.jsx'
 import { SettingsPeopleSection } from '../components/SettingsPeopleSection.jsx'
 import { SettingsPipelinesSection } from '../components/SettingsPipelinesSection.jsx'
@@ -915,6 +916,15 @@ export function SettingsPane({
 
       {activeTab === 'pipelines' && (
         <SettingsPipelinesSection
+          workspace={workspace}
+          permissions={permissions}
+          onAuditRecorded={onAuditRecorded}
+          onSessionExpired={onSessionExpired}
+        />
+      )}
+
+      {activeTab === 'invoice-statuses' && (
+        <SettingsInvoiceStatusesSection
           workspace={workspace}
           permissions={permissions}
           onAuditRecorded={onAuditRecorded}
