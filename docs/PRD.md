@@ -16,6 +16,7 @@ The daily user is a person invited into a workspace. The buyer is the workspace 
 
 The release includes:
 
+- Public marketing website (Home, About, Contact, FAQ, pricing overview, and sign-in/signup entry)
 - Workspaces, roles, audit history, and Ghana connection checks at signup
 - The starter objects and workflows in this document
 - Custom tables, fields, scripts, automations, layouts, and theme tokens
@@ -44,7 +45,7 @@ A person has one account, identified by a verified email address. They can sign 
 - Microsoft
 - A passkey registered on that account
 
-A passkey is another way to sign in. It is not a required second factor. Connecting a Google or Microsoft mailbox is a separate consent from signing in with that provider. A user can view and unlink a connected Google or Microsoft sign-in identity, rename or remove a passkey, set or change their password while signed in, and update their timezone in Settings.
+A passkey is another way to sign in. It is not a required second factor. Connecting a Google or Microsoft mailbox is a separate consent from signing in with that provider. A user can view and unlink a connected Google or Microsoft sign-in identity, rename or remove a passkey, set or change their password while signed in, review their own active sessions and sign out all other devices, and update their timezone in Settings.
 
 An account belongs to one workspace. A workspace has many users. The workspace is addressed by a slug on a single app domain. Additional users join by email invite. An already signed-in verified account visiting the root or sign-in routes resolves into its workspace (`/{slug}`).
 
@@ -62,7 +63,7 @@ Other roles are cloned from a default Staff role. For each object, a role grants
 
 A record is visible to its owner, to one role, or to the whole workspace.
 
-Every record change stores the actor, the time, the previous value, the new value, and whether the actor was a person, a script, an automation, or the agent.
+Every record change stores the actor, the time, the previous value, the new value, and whether the actor was a person, a script, an automation, or the agent. Workspace audit views enforce caller object read rights, omit hidden fields, and exclude records hidden by owner or role visibility rules.
 
 ## Starter objects
 
@@ -149,11 +150,11 @@ Where the pack includes Lead and Deal, converting a lead creates an Account, a C
 
 ### Deals
 
-Where the pack includes Deal, a Deal belongs to a pipeline of ordered stages. The tenant can edit pipelines and stages. A new workspace with Deal starts with one pipeline: New, Qualified, Proposal, Won, Lost. Deals are also shown as a kanban on stage.
+Where the pack includes Deal, a Deal belongs to a pipeline of ordered stages. A new workspace with Deal starts with one pipeline: New, Qualified, Proposal, Won, Lost. The tenant can create, rename, switch, set default, and remove sales pipelines, and can edit stages with configurable color tones and swatches plus stage outcome categories (`Open`, `Won`, `Lost`) with optional close reason and closed date. Deals are also shown as a kanban on stage, and when Invoice, Contract, or Job is enabled, a user can create a pre-filled Draft Invoice, Contract, or Job directly from a Deal.
 
 ### Tickets
 
-Where the pack includes Ticket, statuses start as New, Open, Pending, Resolved, and Closed. The tenant can edit that list.
+Where the pack includes Ticket, statuses start as New, Open, Pending, Resolved, and Closed. The tenant can edit that list; renaming or removing an active status syncs existing tickets cleanly and requires choosing a replacement status whenever tickets exist on a removed status.
 
 ### Appointments and visits
 
@@ -165,7 +166,7 @@ A Job has a status, an assignee, a due date, and a linked Account or Contact. A 
 
 ### Invoices and payments
 
-Where the pack includes Invoice, statuses start as Draft, Issued, Partially paid, Paid, and Void. The tenant can edit that list.
+Where the pack includes Invoice, statuses start as Draft, Issued, Partially paid, Paid, and Void. The tenant can edit that list; renaming or removing a status requires reassigning existing invoices whenever invoices hold that status. Invoices can be created cleanly from scratch or pre-filled from a Deal (carrying Account, Contact, and Deal line items when Line item is on).
 
 An invoice is a commercial document with an issue date and a due date so unpaid and overdue balances and date-offset automations can be tracked. The tenant can view it and download it as a PDF showing the number, customer, issue date, due date, lines, totals, and status. jojoCRM does not file invoices with the Ghana Revenue Authority.
 
@@ -185,7 +186,7 @@ Each interval creates a Draft invoice linked to the subscription. Stock does not
 
 ### Contracts
 
-A Contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date.
+A Contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date. A user can create a pre-filled Contract directly from a Deal.
 
 ### Files, tags, and relations
 
@@ -212,7 +213,7 @@ Each user chooses one mailbox mode:
 - Send from a record through a connected Google or Microsoft account, and log an Activity.
 - Two-way sync with Google or Microsoft.
 
-Two-way sync copies a message into the CRM only when it matches a Contact's email address. Mail that matches no Contact stays in the mailbox and is not imported. Disconnecting the mailbox stops further sync.
+Two-way sync copies matching inbound and outbound Gmail or Outlook message metadata and text content onto matching `Contact` and (when enabled) `Lead` records as email Activities without storing email file attachments (attachments remain in the user's mailbox). Mail that matches no Contact or Lead stays in the mailbox and is not imported. Disconnecting the mailbox stops further sync.
 
 ### SMS
 
@@ -221,6 +222,10 @@ jojoCRM integrates Hubtel's SMS API on jojoCRM's own Hubtel account. Each worksp
 Each workspace has a prepaid GHS SMS wallet. The Owner tops it up by card or mobile money through Paystack. The wallet is separate from the seat subscription, including during the trial. The GHS rate per segment is configuration, not a value hardcoded in the product. A send that the wallet cannot cover does not go out.
 
 SMS goes only to Leads and Contacts whose SMS consent is on. The message includes opt-out instructions. When the provider reports an opt-out, consent turns off and the change is written to the audit log.
+
+### WhatsApp
+
+Where connected by the workspace, jojoCRM integrates Meta's WhatsApp Business Cloud API and Calling webhooks to log and sync inbound and outbound WhatsApp text chats, voice messages and audio recordings (the only synced media type stored by jojoCRM, playable inline on the record timeline), and WhatsApp call logs (direction, status, duration, timestamp) onto matching workspace `Contact` and (when enabled) `Lead` records by normalized phone number. Non-audio WhatsApp files such as images, videos, documents, and stickers are not stored in CRM file storage, and messages or calls from numbers matching no Contact or Lead are skipped. Manual WhatsApp and phone call logging remains available on records for non-API interactions.
 
 ## Customization
 
@@ -260,7 +265,7 @@ The layout builder lets a tenant rearrange a fixed set of surfaces:
 
 - A home dashboard of widgets. Widget types are number, chart, and list. Each widget is bound to an object and filters.
 - Record pages as ordered sections and fields, with a per-record audit change history section inside the record inspector drawer.
-- Lists with chosen columns, filters, sort, saved views, and CSV import column-mapping preview with structured row-level error reporting.
+- Lists with chosen columns, filters, sort, saved views, permission-checked audited bulk row actions (stage/status updates, assignment, tagging, and delete), and CSV import column-mapping preview with structured row-level error reporting.
 - A deal kanban on pipeline stage, where the pack includes Deal.
 - A cross-record Activities view for filtering workspace tasks, calls, meetings, and notes across parent records.
 - Global search across the objects the workspace has, plus searchable/paginated relation pickers when workspaces hold more than 250 linkable records.
@@ -292,6 +297,7 @@ The on-demand assists are:
 - Cancellation risk on a Customer subscription
 - Campaign message draft
 - Contract summary
+- Workspace setup advisor: recommend a starter business type, catalog tables to enable or keep off, and Contact label choices from a plain-language business description (applied only when the user confirms)
 
 Exact email or exact phone on two Accounts, or on two Contacts, in the same workspace merges automatically (including records created prior to or alongside lead conversion), with optional matching/linking for duplicate suggestions. The audit entry records both sides. Every other similarity stays a suggestion until a person confirms it. Merges never cross workspaces. The agent does not merge on its own beyond this exact-match rule.
 
@@ -313,13 +319,17 @@ The SMS wallet is a separate Paystack top-up, by card or mobile money, and is no
 
 ## Privacy
 
-The application database and files may be hosted outside Ghana. The privacy notice names that country. It also names the mail, SMS, payment, and model providers.
+The application database and files may be hosted outside Ghana. The privacy notice names that country. It also names the mail, SMS, WhatsApp (Meta, when enabled), payment, and model providers.
 
 jojoCRM registers with the Ghana Data Protection Commission under the Data Protection Act, 2012 (Act 843). For CRM records, the tenant is the data controller and jojoCRM is the data processor. Signup shows a privacy notice and processing terms. A workspace can export its data and can delete the workspace.
 
 ## Clients
 
 The product ships one responsive web application. It does not ship native iOS or Android apps.
+
+## Public website
+
+Before signing in, prospective tenants can browse a public marketing and informational website on the primary web origin featuring Home, About, Contact (inquiry form), and FAQ pages, a transparent summary of per-seat GHS pricing, 60-day trial and mobile-money prepay terms, links to the privacy notice, and direct navigation to workspace signup (`/signup`) and sign-in (`/login`). This public product website respects the application's light and dark themes; tenant-authored custom CSS, custom HTML, and free-form page builders remain excluded under [Out of the product](#out-of-the-product).
 
 ## Performance and caching
 
@@ -353,9 +363,9 @@ Each sprint is two weeks. The sequence is the build order. Sprint 8 is the publi
 3. **Stock and invoicing.** Product, line item, Invoice, Payment, PDF, Contract, Customer subscription, warehouses, transfers, stock movement, and the packs that use them, including Retail and trading.
 4. **Campaigns and files.** Ticket, Campaign, files, tags, CSV import and export, saved views, and list layouts, on workspaces whose packs include those objects.
 5. **Custom platform and theme.** Custom tables and fields, many-to-one relations, script sandbox, layout builder, and theme tokens.
-6. **Mail, SMS, and automations.** Mailbox send and two-way sync, Hubtel sender ID and wallet, campaign send on all three channels, and if/else automations.
-7. **AI.** Every on-demand assist, exact-match auto-merge, duplicate suggestions, and the unattended agent as an automation action.
-8. **Billing, privacy, and production.** Paystack seat plans, the 60-day trial, mobile-money prepay, the unpaid read-only state, the privacy notice and processing terms, DPC registration tasks, workspace export and delete, and production hardening of the API and the web app.
+6. **Mail, SMS, WhatsApp, and automations.** Mailbox send and two-way sync, WhatsApp chat/audio/call logging and sync, Hubtel sender ID and wallet, campaign send on all three channels, and if/else automations.
+7. **AI.** Every on-demand assist (including the interactive workspace setup & table advisor), exact-match auto-merge, duplicate suggestions, and the unattended agent as an automation action.
+8. **Billing, privacy, and production.** Public marketing website (Home, About, Contact, FAQ), Paystack seat plans, the 60-day trial, mobile-money prepay, the unpaid read-only state, the privacy notice and processing terms, DPC registration tasks, workspace export and delete, and production hardening of the API and the web app.
 
 ## Schedule risk
 

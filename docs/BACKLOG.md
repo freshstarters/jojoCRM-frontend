@@ -126,12 +126,12 @@ The reviewer confirms:
 
 Serves acceptance 4.
 
-A General services workspace has one pipeline: New, Qualified, Proposal, Won, Lost. A role that can manage the sales settings can rename, reorder, add, and remove stages. Deals on a removed stage are moved to a stage the reviewer chooses. The deal board is a kanban grouped by stage.
+A General services workspace has one pipeline: New, Qualified, Proposal, Won, Lost. A role that can manage the sales settings can rename, reorder, add, and remove stages. Deals on a removed stage are moved to a stage the reviewer chooses. The deal board is a kanban grouped by stage. Editing pipeline stages also updates stage choices and initial-stage defaults (falling back cleanly to the first active stage if `Qualified` is renamed or removed) across lead conversion (`ConvertLeadModal` and server conversion validation).
 
 The reviewer confirms:
 
 - The default stages are present on General services.
-- Reordering stages changes the kanban.
+- Reordering or renaming stages updates the kanban and lead conversion stage choices immediately.
 - Dragging a deal to another stage saves that stage.
 - Healthcare has no kanban, because it has no Deal.
 
@@ -156,15 +156,15 @@ The reviewer confirms:
 
 Serves acceptance 4.
 
-Global search covers the objects the workspace has. Foreign-key/relation pickers (`Account`, `Contact`, etc.) support server-backed search and pagination so workspaces with more than 250 linkable records can find and attach any readable record. Opening a record in the inspector drawer updates the URL query or path (`?inspect=...` or record route) so refreshing, sharing a link, or navigating Back/Forward returns to that inspected record. A stage change from S2.3 writes an audit entry with the person, the time, the old stage, and the new stage. Global search results and the audit history drawer paginate results rather than returning unbounded lists. The workspace audit log drawer filters by actor kind, object type, action (`create`, `update`, `delete`), and search query, and opening a record in the inspector drawer shows that record's own audit change history.
+Global search covers the objects the workspace has. Foreign-key/relation pickers (`Account`, `Contact`, etc.) and `ConvertLeadModal` search pickers (`Lead`, `Account`, `Contact`) support server-backed search, pagination, and clear truncation notices so workspaces with more than 25–50 matches or 250 linkable records can find and attach any readable record. Opening a record in the inspector drawer updates the URL query or path (`?inspect=...` or record route) so refreshing, sharing a link, or navigating Back/Forward returns to that inspected record. A stage change from S2.3 writes an audit entry with the person, the time, the old stage, and the new stage. Global search results and the audit history drawer paginate results rather than returning unbounded lists. The workspace audit log drawer filters by actor kind, object type, action (`create`, `update`, `delete`), and search query, strictly enforces S2.4 object read rights, hidden fields, and owner/role record visibility when returning audit entries, and opening a record in the inspector drawer shows that record's own audit change history.
 
 The reviewer confirms:
 
 - Search finds a record by a distinctive name and does not return another workspace's row.
 - Search on Healthcare does not offer Deal.
-- Relation pickers can search and select readable records beyond the first 250 entries.
+- Relation pickers and lead conversion pickers can paginate, search, and select readable records beyond page 1 / 250 entries.
 - Refreshing the browser while inspecting a record reopens that record's inspector drawer cleanly.
-- The stage change is in the deal's inspector history and in the filtered workspace audit drawer after a refresh.
+- The stage change is in the deal's inspector history and in the filtered workspace audit drawer after a refresh, and audit history omits unreadable objects, hidden fields, and records hidden by sharing rules.
 - Large search results and audit histories paginate cleanly across pages and filter by object type, action, and search term.
 
 ### S2.6 Visit
@@ -213,11 +213,12 @@ The reviewer uses Retail and trading for stock and invoices, and Healthcare for 
 
 Serves acceptance 5.
 
-On Retail and trading, Product, line item, Invoice, and Payment are available. A line item points at a Product and can belong to a Deal, an Invoice, a Contract, or a Customer subscription when that parent is on. An Invoice stores an issue date and a due date so unpaid and overdue balances and date-offset automations can be evaluated. Invoice statuses start as Draft, Issued, Partially paid, Paid, and Void. The tenant can edit that list. The PDF shows the number, customer, issue date, due date, lines, GHS totals, and status. A Payment stores amount, date, method, and status against one invoice. Payments exceeding the invoice's remaining unpaid balance are refused. Once an invoice leaves Draft (Issued, Partially paid, or Paid), its line items cannot be edited or deleted directly. Recording a payment does not charge a card and does not move stock. Deleting a Product or Account referenced by an issued invoice or contract is refused while those commercial links exist.
+On Retail and trading, Product, line item, Invoice, and Payment are available. A line item points at a Product and can belong to a Deal, an Invoice, a Contract, or a Customer subscription when that parent is on. An Invoice stores an issue date and a due date so unpaid and overdue balances and date-offset automations can be evaluated. Invoice statuses start as Draft, Issued, Partially paid, Paid, and Void. The tenant can edit that list; renaming or removing an active status syncs existing invoices and requires selecting a replacement status whenever invoices hold a removed status. A Draft invoice (or a Job when enabled) can also be created pre-filled directly from a Deal, carrying Account, Contact, and Deal line items. The PDF shows the number, customer, issue date, due date, lines, GHS totals, and status. A Payment stores amount, date, method, and status against one invoice. Payments exceeding the invoice's remaining unpaid balance are refused. Once an invoice leaves Draft (Issued, Partially paid, or Paid), its line items cannot be edited or deleted directly. Recording a payment does not charge a card and does not move stock. Deleting a Product or Account referenced by an issued invoice or contract is refused while those commercial links exist.
 
 The reviewer confirms:
 
-- A retail invoice with issue date, due date, and two products downloads as that PDF.
+- A retail invoice with issue date, due date, and two products downloads as that PDF, and creating a Draft invoice from a Deal pre-fills its linked customer and line items.
+- Editing invoice statuses blocks deleting a status held by existing invoices until a replacement status is selected.
 - A partial payment leaves the invoice partially paid, payments that meet the total leave it paid, and an overpayment above the remaining balance is refused.
 - Editing or deleting line items on an Issued, Partially paid, or Paid invoice is refused.
 - Nothing in this flow asks the customer for a card.
@@ -241,11 +242,11 @@ The reviewer confirms:
 
 Serves the catalog scope of the PRD.
 
-On a pack that includes Contract, such as Wholesale and distribution, a contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date. Its line items use the same Product rules as an invoice when Product is on. A file can be attached once S4.3 is done; until then the contract itself is enough for this story.
+On a pack that includes Contract, such as Wholesale and distribution, a contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date, and can be created pre-filled directly from a Deal carrying its Account, Contact, and line items when Product is on. Its line items use the same Product rules as an invoice when Product is on. A file can be attached once S4.3 is done; until then the contract itself is enough for this story.
 
 The reviewer confirms:
 
-- The contract shows those fields and its lines.
+- The contract shows those fields and its lines, and can be pre-filled from a Deal.
 - A contract in one workspace is invisible from another.
 
 ### S3.4 Customer subscription
@@ -281,12 +282,12 @@ Completes the saved-view part of acceptance 10. Sending waits for sprint 6. Tick
 
 Serves acceptance 6 and the Healthcare pack.
 
-A ticket is a support case on an Account or a Patient. Statuses start as New, Open, Pending, Resolved, and Closed. The tenant can edit that list. Role rights from S2.4 apply. A pack without Ticket does not show the table. Food and beverage has no Ticket.
+A ticket is a support case on an Account or a Patient. Statuses start as New, Open, Pending, Resolved, and Closed. The tenant can edit that list; renaming a status syncs existing tickets and removing a status with existing tickets requires selecting a replacement status. Role rights from S2.4 apply. A pack without Ticket does not show the table. Food and beverage has no Ticket.
 
 The reviewer confirms:
 
 - A new healthcare ticket starts at New.
-- Moving it through the default statuses is saved.
+- Moving it through the default statuses is saved, and editing Ticket statuses reassigns existing tickets before removal.
 - A role without update rights cannot change the status.
 - Food and beverage does not offer Ticket.
 
@@ -331,14 +332,14 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-A list can change columns, filters, and sort, and that combination can be saved and reopened. The deal kanban from S2.3 remains available beside the deal list. Record lists paginate rows with page controls that preserve active columns, filters, and sort, and deep-linking to an inspected record (`?inspect=...`) preserves view context across refresh and history navigation. Foreign-key/relation pickers support server-backed search/pagination beyond 250 options.
+A list can change columns, filters, and sort, and that combination can be saved and reopened. The deal kanban from S2.3 remains available beside the deal list. Record lists paginate rows with page controls that preserve active columns, filters, and sort, support permission-checked and audited multi-row bulk actions (stage/status updates, owner/assignee changes, tagging, and delete), and deep-linking to an inspected record (`?inspect=...`) preserves view context across refresh and history navigation. Foreign-key/relation pickers support server-backed search/pagination beyond 250 options.
 
 The reviewer confirms:
 
 - A saved view reopens with the same columns, filter, and sort.
 - Another user does not lose their own saved view.
 - A hidden field from S2.4 does not appear as a column for a role that cannot see it.
-- Navigating between pages on a filtered, sorted saved view preserves the view settings, and refreshing a deep-linked record reopens its inspector inside the view.
+- Navigating between pages on a filtered, sorted saved view preserves the view settings, running a bulk update on selected rows applies and audits the changes within caller permissions, and refreshing a deep-linked record reopens its inspector inside the view.
 
 ### S4.6 Activities and tasks view
 
@@ -350,6 +351,17 @@ The reviewer confirms:
 
 - A user can view open tasks, calls, and meetings across multiple Accounts, Contacts, Deals, Jobs, and Tickets from one workspace Activities view.
 - Completing a task or filtering by assignee/type updates the parent record's timeline, and records hidden by sharing/role rules remain excluded.
+
+### S4.7 Multiple sales pipelines and stage outcomes
+
+Serves acceptance 4 and 10.
+
+Workspaces with the Deal table enabled can create, rename, switch, set default, and remove multiple sales pipelines (moving deals or blocking deletion when deals remain on the only pipeline). Each pipeline stage stores a semantic outcome category (`Open`, `Won`, `Lost`) independent of stage name, and closing a deal records optional close reason and actual `closed_at` timestamp so open pipeline value and won/lost reporting remain accurate. DealsPane lets users switch active pipelines, and lead conversion lets users choose the destination pipeline and stage.
+
+The reviewer confirms:
+
+- A General services workspace can add a second sales pipeline (e.g., Renewals), create/move deals on its Kanban board, and select it during Lead conversion without disturbing the default pipeline.
+- Moving a deal into a stage marked Won or Lost records `closed_at` and separates won/lost revenue from active open pipeline totals even when stage names are customized.
 
 ## Sprint 5 — Custom platform and theme
 
@@ -396,7 +408,7 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-The same switch can set a logo, primary, accent, and surface colors, light or dark, and a font from the short list. Preset themes are included. The shell, the dashboard, and record pages all use those tokens. Pasted CSS is not accepted.
+The same switch can set a logo, primary, accent, and surface colors, light or dark, and a font from the short list. Preset themes are included. Expanded semantic stage color tokens adapt cleanly across light and dark modes. The shell, the dashboard, and record pages all use those tokens. Pasted CSS is not accepted.
 
 The reviewer confirms:
 
@@ -426,12 +438,12 @@ The reviewer confirms:
 
 Serves acceptance 8.
 
-The user can choose two-way sync instead of send-only. Messages that match a Contact's email address are copied onto that Contact. Messages that match no Contact stay in the mailbox and are not stored in the CRM. Disconnecting stops further copies. Existing copied messages remain on the record.
+The user can choose two-way sync instead of send-only. Inbound and outbound Gmail or Outlook messages that match a Contact's email address—or a Lead's email address when Lead is enabled—are copied onto that record as email Activity metadata and text body without storing email file attachments (attachments remain in the user's mailbox). Messages that match no Contact or Lead stay in the mailbox and are not stored in the CRM. Disconnecting stops further copies. Existing copied messages remain on the record.
 
 The reviewer confirms:
 
-- A message to a known Contact appears on that Contact.
-- A message to an unknown address does not create a Contact and does not appear in search.
+- A message to or from a known Contact or Lead appears on that record's timeline without storing email file attachments in CRM storage.
+- A message to an unknown address does not create a Contact or Lead and does not appear in search.
 - Disconnecting stops new copies.
 
 ### S6.3 SMS wallet
@@ -473,6 +485,18 @@ The reviewer confirms:
 - A webhook action targeting a private, loopback, or link-local address is refused and logged in execution history.
 - A loop or a code step cannot be saved.
 - An automation firing an in-app notification displays the unread item in the topbar notification center and allows marking it read or dismissing it.
+
+### S6.6 WhatsApp messaging, audio, and call logging
+
+Serves acceptance 7 and 8.
+
+Connect a workspace WhatsApp Business phone number via Meta's WhatsApp Business Cloud API and Calling webhooks (separate from S6.3 Hubtel SMS campaigns) to log and sync inbound and outbound WhatsApp text chats, voice messages and audio recordings (stored as audio files only via S4.3 storage with inline timeline playback—non-audio media such as images, videos, documents, and stickers are not stored), and WhatsApp call logs (direction, status, duration, timestamp) onto matching workspace Contact and (when enabled) Lead records by normalized phone number. Messages or calls from unknown numbers that match no Contact or Lead are skipped. Users can also log manual WhatsApp/phone call notes on records for non-API calls, and disconnecting stops new syncing while keeping existing timeline logs.
+
+The reviewer confirms:
+
+- Inbound and outbound WhatsApp text messages, voice notes/audio recordings (playable inline), and call logs from a matched Contact or Lead appear on that record's activity timeline.
+- Sending an image, video, or document over WhatsApp does not store that non-audio file in CRM file storage, while voice notes and audio recordings are stored and playable.
+- WhatsApp events from an unknown phone number do not create a Contact or Lead and do not appear in search.
 
 ## Sprint 7 — AI
 
@@ -534,6 +558,18 @@ The reviewer confirms:
 - A second agent step in the same run does not run.
 - An instruction aimed at billing, roles, scripts, or automations is refused and the refusal is stored.
 
+### S7.4 AI workspace setup advisor
+
+Supports workspace onboarding and pack selection (acceptance 1 and 11).
+
+During workspace onboarding or in `Settings -> Packs`, an Owner (or a role permitted to manage packs and tables) can describe their business operations in plain language to an interactive on-demand AI setup advisor. The advisor explains which starter business type, catalog tables (`Product`, `Invoice`, `Job`, `Appointment`, `Booking`, `Shipment`, `Policy`, etc.), and `Contact` label (`Contact`, `Patient`, `Student`, `Donor`, `Member`) fit that business—along with why optional tables can remain turned off. No packs or tables are changed until the person reviews the recommendations and explicitly confirms applying them.
+
+The reviewer confirms:
+
+- Describing a business (e.g., an auto repair shop or private clinic) returns tailored business-type, catalog table, and `Contact` label recommendations with plain-language explanations.
+- Declining or closing the advisor leaves existing workspace packs and tables untouched, and confirming applies only the selected pack/table updates cleanly.
+- A non-Owner role without pack-management permission cannot apply table recommendations from the advisor.
+
 ## Sprint 8 — Billing, privacy, and production
 
 Unlocks acceptance 13 and 14. With every earlier acceptance item still passing, this is full release acceptance.
@@ -569,11 +605,11 @@ The reviewer confirms:
 
 Serves acceptance 14.
 
-Signup shows a privacy notice and processing terms. The notice names the hosting country and the mail, SMS, payment, and model providers. For CRM records the tenant is the controller and jojoCRM is the processor. A workspace export covers the tenant's data. Deleting the workspace removes that data. Data Protection Commission registration is the Product owner's prerequisite. This story shows the notice, the terms, the export, and the delete.
+Signup shows a privacy notice and processing terms. The notice names the hosting country and the mail, SMS, WhatsApp (Meta, when enabled), payment, and model providers. For CRM records the tenant is the controller and jojoCRM is the processor. A workspace export covers the tenant's data. Deleting the workspace removes that data. Data Protection Commission registration is the Product owner's prerequisite. This story shows the notice, the terms, the export, and the delete.
 
 The reviewer confirms:
 
-- The notice names the country and each provider actually in use.
+- The notice names the country and each provider actually in use (including Meta when WhatsApp sync is configured).
 - Export produces the workspace's records.
 - After delete, that workspace cannot be opened and its records are gone.
 
@@ -581,11 +617,24 @@ The reviewer confirms:
 
 Serves the release as a whole.
 
-The API and the web app are fit to run the acceptance list on the production host. Secrets stay in configuration. Card numbers are not in the application database. Production caching (`S2.7` `CACHES` backend, HTTP cache headers, and tenant-isolated invalidation) is verified under production settings. A carried-forward story from an earlier sprint is closed here if it was still open, and the fourteen acceptance items are walked through once on that host.
+The API and the web app are fit to run the acceptance list on the production host. Secrets stay in configuration. Card numbers are not in the application database. Production caching (`S2.7` `CACHES` backend, HTTP cache headers, and tenant-isolated invalidation) is verified under production settings. Signed-in users can view their own active sessions and sign out all other devices from Settings. A carried-forward story from an earlier sprint is closed here if it was still open, and the fourteen acceptance items are walked through once on that host.
 
 The reviewer confirms:
 
 - The fourteen PRD acceptance items pass on the production workspace.
 - The exclusions in the PRD are still absent.
 - A card number cannot be found in the application database.
+- Signed-in users can view active sessions and sign out other devices in Settings.
 - Cached responses remain strictly isolated per workspace and invalidate cleanly on writes.
+
+### S8.5 Public marketing website
+
+Supports release onboarding and product presentation.
+
+The public web entry at `/` serves a cohesive marketing website with dedicated Home, About, Contact, and FAQ pages, a clear overview of Ghana-ready CRM packs, per-seat GHS billing, the 60-day trial and mobile-money prepay options, links to the privacy notice, and direct navigation into `/signup` and `/login`. The Contact page allows prospective tenants to submit inquiries cleanly with validation feedback. Signed-in users visiting `/` continue smoothly into their active workspace without losing app responsiveness, and all public pages support both light and dark themes cleanly.
+
+The reviewer confirms:
+
+- A signed-out visitor can navigate across Home, About, Contact, and FAQ, switch cleanly between light and dark themes, and enter `/signup` or `/login`.
+- Submitting the Contact page inquiry validates required fields and records/dispatches the inquiry cleanly with clear confirmation feedback.
+- The FAQ and pricing overview match the PRD (no free plan, per-seat GHS billing, and connection-location check described accurately).
