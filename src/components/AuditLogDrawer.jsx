@@ -40,6 +40,8 @@ const OBJECT_TYPE_LABELS = {
   contact: 'Contact',
   lead: 'Lead',
   deal: 'Deal',
+  pipeline: 'Pipeline',
+  pipeline_stage: 'Pipeline stage',
   activity: 'Activity',
   job: 'Job',
   appointment: 'Appointment',

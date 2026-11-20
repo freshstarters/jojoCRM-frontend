@@ -63,15 +63,17 @@ export function Select({
     }
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
         setOpen(false)
         triggerRef.current?.focus()
       }
     }
     document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('keydown', handleKeyDown, true)
     return () => {
       document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('keydown', handleKeyDown, true)
     }
   }, [open])
 
@@ -96,8 +98,17 @@ export function Select({
         onClick={() => setOpen((prev) => !prev)}
         className={`custom-select-trigger w-full px-3 py-2 ${open ? 'is-open' : ''} ${className}`.trim()}
       >
-        <span className="truncate">
-          {selectedOption ? selectedOption.label : placeholder}
+        <span className="flex items-center gap-2 min-w-0 truncate">
+          {selectedOption?.swatchColor ? (
+            <span
+              className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/15"
+              style={{ backgroundColor: selectedOption.swatchColor }}
+              aria-hidden="true"
+            />
+          ) : null}
+          <span className="truncate">
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
         </span>
         <svg
           className="custom-select-chevron"
@@ -136,7 +147,16 @@ export function Select({
                   onClick={() => handleSelectOption(opt.value)}
                   className={`custom-select-option ${isSelected ? 'is-selected' : ''}`.trim()}
                 >
-                  <span className="truncate">{opt.label}</span>
+                  <span className="flex items-center gap-2 min-w-0">
+                    {opt.swatchColor ? (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 border border-black/15"
+                        style={{ backgroundColor: opt.swatchColor }}
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    <span className="truncate">{opt.label}</span>
+                  </span>
                   {isSelected && (
                     <svg
                       className="w-3.5 h-3.5 shrink-0"
