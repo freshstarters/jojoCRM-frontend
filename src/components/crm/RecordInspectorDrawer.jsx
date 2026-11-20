@@ -4,6 +4,7 @@ import { Drawer } from '../Drawer.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { ActivityTimeline } from './ActivityTimeline.jsx'
+import { RecordAuditHistory } from './RecordAuditHistory.jsx'
 import { RecordLinksSection } from './RecordLinksSection.jsx'
 import { RecordSharingControl, SharingBadge } from './RecordSharingControl.jsx'
 
@@ -32,10 +33,12 @@ export function RecordInspectorDrawer({
   onSave,
   onDelete,
   onActivityChanged,
+  auditRefreshKey = 0,
   onOpenLinkedRecord,
   onSessionExpired,
   badgeText = '',
   badgeClassName = 'badge badge-neutral',
+  headerActions = null,
   subtitle = '',
   children,
 }) {
@@ -100,12 +103,17 @@ export function RecordInspectorDrawer({
       >
         <div className="space-y-4">
           {record ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="badge badge-neutral num-tabular">
-                {record.record_code}
-              </span>
-              <SharingBadge record={record} />
-              {badgeText ? <span className={badgeClassName}>{badgeText}</span> : null}
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="badge badge-neutral num-tabular">
+                  {record.record_code}
+                </span>
+                <SharingBadge record={record} />
+                {badgeText ? <span className={badgeClassName}>{badgeText}</span> : null}
+              </div>
+              {headerActions ? (
+                <div className="flex flex-wrap items-center gap-2">{headerActions}</div>
+              ) : null}
             </div>
           ) : null}
 
@@ -147,6 +155,7 @@ export function RecordInspectorDrawer({
                 linkedRecords={record.linked_records}
                 contactLabel={contactLabel}
                 contactPluralLabel={contactPluralLabel}
+                userTimezone={userTimezone}
                 onOpenRecord={onOpenLinkedRecord}
               />
 
@@ -162,6 +171,15 @@ export function RecordInspectorDrawer({
                 permissions={permissions}
                 userTimezone={userTimezone}
                 onChanged={onActivityChanged}
+                onSessionExpired={onSessionExpired}
+              />
+
+              <RecordAuditHistory
+                workspaceSlug={workspaceSlug}
+                objectKey={objectKey}
+                recordId={record.id}
+                userTimezone={userTimezone}
+                refreshKey={auditRefreshKey}
                 onSessionExpired={onSessionExpired}
               />
             </>

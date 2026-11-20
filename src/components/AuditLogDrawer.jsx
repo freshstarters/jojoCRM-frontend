@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { apiGet } from '../utils/api.js'
+import { useEffect, useMemo, useState } from 'react'
+import { fetchWorkspaceAudit } from '../service/crmService.js'
 import { Button } from './Button.jsx'
 import { Drawer } from './Drawer.jsx'
 import { FeedbackNotice } from './FeedbackNotice.jsx'
@@ -12,6 +12,13 @@ const ACTOR_KIND_OPTIONS = [
   { value: 'script', label: 'Script' },
   { value: 'automation', label: 'Automation' },
   { value: 'agent', label: 'Agent' },
+]
+
+const ACTION_OPTIONS = [
+  { value: '', label: 'All actions' },
+  { value: 'create', label: 'Created' },
+  { value: 'update', label: 'Updated' },
+  { value: 'delete', label: 'Removed' },
 ]
 
 const ACTOR_KIND_BADGES = {
@@ -45,6 +52,7 @@ const OBJECT_TYPE_LABELS = {
   activity: 'Activity',
   job: 'Job',
   appointment: 'Appointment',
+  visit: 'Visit',
   ticket: 'Ticket',
 }
 
@@ -83,35 +91,66 @@ export function AuditLogDrawer({
   contactLabel = 'Contact',
   canManageUsers = false,
   refreshKey = 0,
+  permissionsRevision = 0,
+  onInspectRecord,
   onSessionExpired,
 }) {
   const [page, setPage] = useState(1)
   const [actorKind, setActorKind] = useState('')
+  const [objectType, setObjectType] = useState('')
+  const [action, setAction] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [error, setError] = useState('')
   const [auditData, setAuditData] = useState(null)
   const [manualRefresh, setManualRefresh] = useState(0)
   const [completedRequestKey, setCompletedRequestKey] = useState('')
 
+  useEffect(() => {
+    const trimmed = search.trim()
+    if (!trimmed) return undefined
+    const timer = setTimeout(() => {
+      setDebouncedSearch(trimmed)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const effectiveSearch = search.trim() ? debouncedSearch : ''
+  const availableObjectTypes = auditData?.available_object_types
+
+  const objectTypeOptions = useMemo(() => {
+    const raw = Array.isArray(availableObjectTypes) ? availableObjectTypes : []
+    return [
+      { value: '', label: 'All objects' },
+      ...raw.map((item) => ({ value: item.key, label: item.label })),
+    ]
+  }, [availableObjectTypes])
+
+  const effectiveObjectType = useMemo(() => {
+    if (!objectType) return ''
+    if (!availableObjectTypes) return objectType
+    const allowed = new Set(availableObjectTypes.map((item) => item.key))
+    return allowed.has(objectType) ? objectType : ''
+  }, [objectType, availableObjectTypes])
+
   const requestKey = open
-    ? `${workspaceSlug || ''}:${page}:${actorKind}:${refreshKey}:${manualRefresh}`
+    ? `${workspaceSlug || ''}:${page}:${actorKind}:${effectiveObjectType}:${action}:${effectiveSearch}:${refreshKey}:${permissionsRevision}:${manualRefresh}`
     : ''
   const loading = Boolean(open && workspaceSlug && completedRequestKey !== requestKey)
 
   useEffect(() => {
-    if (!open || !workspaceSlug) return
+    if (!open || !workspaceSlug) return undefined
     let cancelled = false
     const activeKey = requestKey
-    const params = new URLSearchParams({
-      page: String(page),
-      page_size: '20',
-    })
-    if (actorKind) {
-      params.set('actor_kind', actorKind)
-    }
 
-    apiGet(
-      `/api/v1/workspaces/${encodeURIComponent(workspaceSlug)}/audit/?${params.toString()}`,
-    )
+    fetchWorkspaceAudit(workspaceSlug, {
+      page,
+      page_size: 20,
+      ...(actorKind ? { actor_kind: actorKind } : {}),
+      ...(effectiveObjectType ? { object_type: effectiveObjectType } : {}),
+      ...(action ? { action } : {}),
+      ...(effectiveSearch ? { q: effectiveSearch } : {}),
+    })
       .then(({ response, data }) => {
         if (cancelled) return
         if (!response.ok) {
@@ -141,14 +180,34 @@ export function AuditLogDrawer({
     return () => {
       cancelled = true
     }
-  }, [open, workspaceSlug, page, actorKind, requestKey, onSessionExpired])
+  }, [
+    open,
+    workspaceSlug,
+    page,
+    actorKind,
+    effectiveObjectType,
+    action,
+    effectiveSearch,
+    requestKey,
+    onSessionExpired,
+  ])
 
   const entries = auditData?.results || []
   const totalCount = auditData?.total_count ?? 0
   const totalPages = auditData?.total_pages ?? 1
+  const hasActiveFilters = Boolean(actorKind || effectiveObjectType || action || search.trim())
   const scopeNote = canManageUsers
-    ? 'Showing workspace-wide changes with actor, timestamp, and before/after values.'
-    : 'Showing your account activity and workspace record changes.'
+    ? 'Showing workspace changes permitted for your role with actor, timestamp, and before/after values.'
+    : 'Showing your account activity and readable workspace record changes.'
+
+  function clearAllFilters() {
+    setPage(1)
+    setActorKind('')
+    setObjectType('')
+    setAction('')
+    setSearch('')
+    setDebouncedSearch('')
+  }
 
   return (
     <Drawer
@@ -211,8 +270,39 @@ export function AuditLogDrawer({
       }
     >
       <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="w-48">
+        {/* Search + Filter Controls */}
+        <div className="space-y-2.5">
+          <div className="flex items-center gap-2">
+            <input
+              id="audit-search-input"
+              type="search"
+              value={search}
+              onChange={(e) => {
+                setPage(1)
+                setSearch(e.target.value)
+              }}
+              placeholder="Search actor, record, field, or value..."
+              aria-label="Search audit log"
+              className="crm-input flex-1 px-3 py-1.5 text-xs"
+            />
+            {hasActiveFilters ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={clearAllFilters}
+                className="px-2.5 py-1.5 text-xs shrink-0"
+              >
+                Clear
+              </Button>
+            ) : null}
+            <RefreshButton
+              loading={loading}
+              label="Refresh audit log"
+              onClick={() => setManualRefresh((prev) => prev + 1)}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <Select
               id="audit-actor-kind-filter"
               ariaLabel="Filter audit log by actor kind"
@@ -223,12 +313,27 @@ export function AuditLogDrawer({
               }}
               options={ACTOR_KIND_OPTIONS}
             />
+            <Select
+              id="audit-object-type-filter"
+              ariaLabel="Filter audit log by object type"
+              value={effectiveObjectType}
+              onChange={(nextValue) => {
+                setPage(1)
+                setObjectType(nextValue)
+              }}
+              options={objectTypeOptions}
+            />
+            <Select
+              id="audit-action-filter"
+              ariaLabel="Filter audit log by action"
+              value={action}
+              onChange={(nextValue) => {
+                setPage(1)
+                setAction(nextValue)
+              }}
+              options={ACTION_OPTIONS}
+            />
           </div>
-          <RefreshButton
-            loading={loading}
-            label="Refresh audit log"
-            onClick={() => setManualRefresh((prev) => prev + 1)}
-          />
         </div>
 
         <FeedbackNotice tone="danger" message={error} />
@@ -239,7 +344,9 @@ export function AuditLogDrawer({
 
         {!loading && !error && entries.length === 0 ? (
           <div className="crm-subtle px-3.5 py-3 text-xs text-sub">
-            No audit entries match the current view yet.
+            {hasActiveFilters
+              ? 'No audit entries match the current filters.'
+              : 'No audit entries match the current view yet.'}
           </div>
         ) : null}
 
@@ -278,17 +385,31 @@ export function AuditLogDrawer({
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-sub">
-                    <span className="badge badge-neutral">{objectLabel}</span>
-                    {entry.record_label ? (
-                      <span className="font-medium text-main break-all">
-                        {entry.record_label}
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-sub">
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <span className="badge badge-neutral">{objectLabel}</span>
+                      {entry.record_label ? (
+                        <span className="font-medium text-main break-all">
+                          {entry.record_label}
+                        </span>
+                      ) : null}
+                      <span>·</span>
+                      <span className="font-mono text-[11px] text-main">
+                        {entry.field_name}
                       </span>
+                    </div>
+                    {entry.can_inspect && entry.inspect_pane_id && onInspectRecord ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClose?.()
+                          onInspectRecord(entry.inspect_pane_id, Number(entry.object_id))
+                        }}
+                        className="text-[11px] font-medium brand-text hover:underline shrink-0"
+                      >
+                        Inspect
+                      </button>
                     ) : null}
-                    <span>·</span>
-                    <span className="font-mono text-[11px] text-main">
-                      {entry.field_name}
-                    </span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 text-xs">
