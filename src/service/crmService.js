@@ -1,4 +1,5 @@
 import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/api.js'
+import { fetchWorkspaceLookupCached } from '../utils/clientCache.js'
 
 const STAGE_TONE_BADGES = {
   neutral: 'badge badge-neutral',
@@ -148,12 +149,31 @@ export function canUserConvertLead(permissions, workspace) {
   return { conversionEnabled: true, canConvert }
 }
 
-export function fetchDashboardSummary(slug) {
-  return apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/dashboard/`)
+export function fetchDashboardSummary(slug, { force = false } = {}) {
+  return fetchWorkspaceLookupCached(
+    slug,
+    'dashboard',
+    () => apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/dashboard/`),
+    { force },
+  )
 }
 
-export function fetchCrmOptions(slug) {
-  return apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/crm/options/`)
+export function fetchCrmOptions(slug, { force = false } = {}) {
+  return fetchWorkspaceLookupCached(
+    slug,
+    'options',
+    () => apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/crm/options/`),
+    { force },
+  )
+}
+
+export function fetchWorkspacePacks(slug, { force = false } = {}) {
+  return fetchWorkspaceLookupCached(
+    slug,
+    'packs',
+    () => apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/packs/`),
+    { force },
+  )
 }
 
 export function listCrmRecords(slug, objectKey, params = {}) {
@@ -251,8 +271,13 @@ export function renamePasskeyCredential(passkeyId, name) {
   return apiPatch(`/api/v1/auth/passkey/${passkeyId}/`, { name })
 }
 
-export function fetchWorkspacePipeline(slug) {
-  return apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/pipelines/`)
+export function fetchWorkspacePipeline(slug, { force = false } = {}) {
+  return fetchWorkspaceLookupCached(
+    slug,
+    'pipelines',
+    () => apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/pipelines/`),
+    { force },
+  )
 }
 
 export function updateWorkspacePipeline(slug, payload) {

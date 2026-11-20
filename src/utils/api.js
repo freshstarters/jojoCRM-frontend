@@ -1,3 +1,12 @@
+import {
+  clearWorkspaceClientCaches,
+  deduplicateSessionRequest,
+  deduplicateWorkspaceDetailRequest,
+  getCachedStaticCatalog,
+  invalidateClientCachesForMutation,
+  syncClientPermissionsVersion,
+} from './clientCache.js'
+
 export function getCookie(name) {
   const cookieString = document.cookie || ''
   const parts = cookieString.split(';')
@@ -60,7 +69,13 @@ async function requestJson(path, { method = 'GET', payload, includeCsrf = false 
   })
   const headerPermVersion = response.headers?.get?.('X-Permissions-Version')
   if (headerPermVersion) {
+    syncClientPermissionsVersion(headerPermVersion, { broadcast: true })
     notifyPermissionsVersion(headerPermVersion)
+  }
+  if (response.status === 401) {
+    clearWorkspaceClientCaches({ broadcast: false })
+  } else if (response.ok && ['POST', 'PATCH', 'PUT', 'DELETE'].includes(method)) {
+    invalidateClientCachesForMutation(path, method)
   }
   const data = await response.json().catch(() => ({}))
   return { response, data }
@@ -86,34 +101,16 @@ export function apiDelete(path, payload = undefined) {
   })
 }
 
-let inflightSessionRequest = null
-let inflightCatalogRequest = null
-let cachedCatalogResponse = null
-
 export function fetchAuthSession() {
-  if (!inflightSessionRequest) {
-    inflightSessionRequest = apiGet('/api/v1/auth/session/').finally(() => {
-      inflightSessionRequest = null
-    })
-  }
-  return inflightSessionRequest
+  return deduplicateSessionRequest(() => apiGet('/api/v1/auth/session/'))
 }
 
 export function fetchBusinessTypesCatalog() {
-  if (cachedCatalogResponse?.response?.ok) {
-    return Promise.resolve(cachedCatalogResponse)
-  }
-  if (!inflightCatalogRequest) {
-    inflightCatalogRequest = apiGet('/api/v1/catalog/business-types/')
-      .then((result) => {
-        if (result?.response?.ok && Array.isArray(result?.data?.business_types)) {
-          cachedCatalogResponse = result
-        }
-        return result
-      })
-      .finally(() => {
-        inflightCatalogRequest = null
-      })
-  }
-  return inflightCatalogRequest
+  return getCachedStaticCatalog(() => apiGet('/api/v1/catalog/business-types/'))
+}
+
+export function fetchWorkspaceDetail(slug) {
+  return deduplicateWorkspaceDetailRequest(slug, () =>
+    apiGet(`/api/v1/workspaces/${encodeURIComponent(slug)}/`),
+  )
 }
