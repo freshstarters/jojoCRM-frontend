@@ -9,6 +9,7 @@ import {
   fetchAuthSession,
   fetchBusinessTypesCatalog,
 } from '../utils/api.js'
+import { clearWorkspaceClientCaches } from '../utils/clientCache.js'
 
 function slugifyWorkspaceName(value) {
   return value
@@ -135,6 +136,7 @@ export function SignupScreen({
     setErrorMessage('')
     try {
       await apiPost('/api/v1/logout/', {})
+      clearWorkspaceClientCaches({ broadcast: true })
       setActiveSession(null)
       setPendingVerification(null)
       onSignedOut?.()

@@ -37,7 +37,7 @@ export function DashboardPane({
     if (!workspaceSlug) return undefined
     let cancelled = false
 
-    fetchDashboardSummary(workspaceSlug)
+    fetchDashboardSummary(workspaceSlug, { force: refreshTick > 0 })
       .then(({ response, data }) => {
         if (cancelled) return
         if (!response.ok) {

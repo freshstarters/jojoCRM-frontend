@@ -70,7 +70,7 @@ export function SettingsPipelinesSection({
     if (!workspaceSlug) return undefined
     let cancelled = false
 
-    fetchWorkspacePipeline(workspaceSlug)
+    fetchWorkspacePipeline(workspaceSlug, { force: refreshTick > 0 })
       .then(({ response, data }) => {
         if (cancelled) return
         if (!response.ok) {

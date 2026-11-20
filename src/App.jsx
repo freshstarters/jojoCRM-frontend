@@ -6,11 +6,16 @@ import { FeedbackNotice } from './components/FeedbackNotice.jsx'
 import { LoginScreen } from './screens/LoginScreen.jsx'
 import { SignupScreen } from './screens/SignupScreen.jsx'
 import {
-  apiGet,
   apiPost,
   fetchAuthSession,
+  fetchWorkspaceDetail,
   subscribePermissionsVersion,
 } from './utils/api.js'
+import {
+  clearWorkspaceClientCaches,
+  invalidateWorkspaceClientCache,
+  setActiveWorkspaceScope,
+} from './utils/clientCache.js'
 import {
   INSPECTABLE_OBJECT_PANES,
   buildWorkspacePath,
@@ -168,6 +173,10 @@ function App() {
   }, [])
 
   const activeSlug = routeState.slug
+  useEffect(() => {
+    setActiveWorkspaceScope(activeSlug || '')
+  }, [activeSlug])
+
   const isRecoveryRoute = !activeSlug && RECOVERY_ROUTES.has(routeState.route)
   const isAlreadyVerifiedForActiveSlug = Boolean(
     activeSlug &&
@@ -223,6 +232,9 @@ function App() {
 
   function handleWorkspaceUpdated(nextData) {
     if (!nextData) return
+    if (activeSlug) {
+      invalidateWorkspaceClientCache(activeSlug, ['dashboard', 'options', 'packs', 'pipelines'])
+    }
     const nextWorkspace = nextData.workspace || nextData
     const nextPermVer =
       nextData.permissions_version ||
@@ -353,11 +365,8 @@ function App() {
 
     let cancelled = false
 
-    fetch(`/api/v1/workspaces/${encodeURIComponent(activeSlug)}/`, {
-      credentials: 'same-origin',
-    })
-      .then(async (res) => {
-        const body = await res.json().catch(() => ({}))
+    fetchWorkspaceDetail(activeSlug)
+      .then(({ response: res, data: body }) => {
         if (cancelled) return
 
         if (!res.ok) {
@@ -426,6 +435,8 @@ function App() {
 
   function handleAuthenticatedWorkspace(data) {
     const slug = data.workspace.slug
+    clearWorkspaceClientCaches({ broadcast: false })
+    setActiveWorkspaceScope(slug)
     setWorkspaceData(data)
     setFetchedSlugState({
       slug,
@@ -446,6 +457,7 @@ function App() {
   }
 
   const handleSessionExpired = useCallback((message = '') => {
+    clearWorkspaceClientCaches({ broadcast: false })
     setWorkspaceData(null)
     setFetchedSlugState({
       slug: null,
@@ -470,7 +482,7 @@ function App() {
       try {
         const result = viaSession
           ? await fetchAuthSession()
-          : await apiGet(`/api/v1/workspaces/${encodeURIComponent(activeSlug)}/`)
+          : await fetchWorkspaceDetail(activeSlug)
         const { response, data } = result
         if (response.status === 401 || (viaSession && response.ok && data?.authenticated === false)) {
           handleSessionExpired(data?.error || data?.detail)
@@ -559,6 +571,7 @@ function App() {
     } catch {
       // Proceed to login screen even if network fails
     }
+    clearWorkspaceClientCaches({ broadcast: true })
     setWorkspaceData(null)
     setInitialSignupSession(null)
     setFetchedSlugState({

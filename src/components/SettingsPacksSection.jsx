@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { apiGet, apiPatch, apiPost } from '../utils/api.js'
+import { fetchWorkspacePacks } from '../service/crmService.js'
+import { apiPatch, apiPost } from '../utils/api.js'
 import { Button } from './Button.jsx'
 import { Card } from './Card.jsx'
 import { FeedbackNotice } from './FeedbackNotice.jsx'
@@ -34,7 +35,7 @@ export function SettingsPacksSection({
     if (!workspaceSlug) return
     let cancelled = false
 
-    apiGet(`/api/v1/workspaces/${encodeURIComponent(workspaceSlug)}/packs/`)
+    fetchWorkspacePacks(workspaceSlug, { force: refreshTick > 0 })
       .then(({ response, data }) => {
         if (cancelled) return
         if (!response.ok) {

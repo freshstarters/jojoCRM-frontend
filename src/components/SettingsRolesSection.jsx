@@ -4,7 +4,7 @@ import {
   deleteWorkspaceRole,
   updateWorkspaceRole,
 } from '../service/crmService.js'
-import { apiGet } from '../utils/api.js'
+import { apiGet, fetchWorkspaceDetail } from '../utils/api.js'
 import { Button } from './Button.jsx'
 import { Card } from './Card.jsx'
 import { Checkbox } from './Checkbox.jsx'
@@ -257,9 +257,7 @@ export function SettingsRolesSection({
   async function refreshActiveWorkspaceState() {
     if (!onWorkspaceUpdated || !effectiveSlug) return
     try {
-      const wsRes = await apiGet(
-        `/api/v1/workspaces/${encodeURIComponent(effectiveSlug)}/`,
-      )
+      const wsRes = await fetchWorkspaceDetail(effectiveSlug)
       if (wsRes.response.ok && wsRes.data) {
         onWorkspaceUpdated(wsRes.data)
       }
