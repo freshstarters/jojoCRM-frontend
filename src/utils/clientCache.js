@@ -5,9 +5,10 @@ export const WORKSPACE_CACHE_TTLS = {
   options: 30_000,
   packs: 30_000,
   pipelines: 30_000,
+  invoiceStatuses: 30_000,
 }
 
-const ALL_LOOKUP_DOMAINS = ['dashboard', 'options', 'packs', 'pipelines']
+const ALL_LOOKUP_DOMAINS = ['dashboard', 'options', 'packs', 'pipelines', 'invoiceStatuses']
 
 const tabInstanceId =
   typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -196,18 +197,31 @@ export function invalidateClientCachesForMutation(path, method) {
     const isLookupTarget =
       subPath.startsWith('/records/account') ||
       subPath.startsWith('/records/contact') ||
+      subPath.startsWith('/records/product') ||
       subPath.includes('/convert')
-    domains = isLookupTarget ? ['dashboard', 'packs', 'options'] : ['dashboard', 'packs']
+    const isInvoiceRelated =
+      subPath.startsWith('/records/invoice') ||
+      subPath.startsWith('/records/payment') ||
+      subPath.includes('/create-invoice')
+    if (isLookupTarget) {
+      domains = ['dashboard', 'packs', 'options']
+    } else if (isInvoiceRelated) {
+      domains = ['dashboard', 'packs', 'invoiceStatuses']
+    } else {
+      domains = ['dashboard', 'packs']
+    }
   } else if (subPath.startsWith('/packs/') || subPath.startsWith('/tables/')) {
-    domains = ['packs', 'options', 'dashboard', 'pipelines']
+    domains = ['packs', 'options', 'dashboard', 'pipelines', 'invoiceStatuses']
   } else if (
     subPath.startsWith('/roles/') ||
     subPath.startsWith('/members/') ||
     subPath.startsWith('/invites/')
   ) {
-    domains = ['options', 'dashboard', 'packs', 'pipelines']
+    domains = ['options', 'dashboard', 'packs', 'pipelines', 'invoiceStatuses']
   } else if (subPath.startsWith('/pipelines/')) {
     domains = ['pipelines', 'options', 'dashboard']
+  } else if (subPath.startsWith('/invoice-statuses/')) {
+    domains = ['invoiceStatuses', 'options', 'dashboard']
   } else if (subPath === '/' || subPath === '') {
     domains = ['options', 'packs', 'dashboard']
   }

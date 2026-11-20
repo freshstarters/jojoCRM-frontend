@@ -75,17 +75,21 @@ export function getSettingsTabs(workspace) {
     ? workspace.enabled_object_keys
     : []
   const hasDeal = enabledList.includes('deal')
-  if (!hasDeal) {
-    return BASE_SETTINGS_TABS
-  }
-  return [
+  const hasInvoice = enabledList.includes('invoice')
+  const tabs = [
     { id: 'workspace', label: 'Workspace' },
     { id: 'packs', label: 'Packs' },
     { id: 'people', label: 'People' },
     { id: 'roles', label: 'Roles' },
-    { id: 'pipelines', label: 'Pipelines' },
-    { id: 'security', label: 'Account & Security' },
   ]
+  if (hasDeal) {
+    tabs.push({ id: 'pipelines', label: 'Pipelines' })
+  }
+  if (hasInvoice) {
+    tabs.push({ id: 'invoice-statuses', label: 'Invoice Statuses' })
+  }
+  tabs.push({ id: 'security', label: 'Account & Security' })
+  return tabs
 }
 
 export const DEALS_SUBTABS = [
@@ -377,6 +381,12 @@ export const INSPECTABLE_OBJECT_PANES = {
   leads: 'leads',
   deal: 'deals',
   deals: 'deals',
+  product: 'products',
+  products: 'products',
+  invoice: 'invoicing',
+  invoices: 'invoicing',
+  payment: 'invoicing',
+  payments: 'invoicing',
   job: 'jobs',
   jobs: 'jobs',
   appointment: 'appointments',
