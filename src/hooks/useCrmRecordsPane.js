@@ -4,6 +4,7 @@ import {
   deleteCrmRecord,
   fetchCrmOptions,
   getCrmRecord,
+  getFieldRights,
   getObjectRights,
   listCrmRecords,
   updateCrmRecord,
@@ -13,6 +14,8 @@ export function useCrmRecordsPane({
   workspaceSlug,
   objectKey,
   permissions,
+  permissionsRevision = 0,
+  enabled = true,
   initialInspectRequest = null,
   onInspectRequestConsumed,
   needOptions = false,
@@ -20,9 +23,11 @@ export function useCrmRecordsPane({
   onSessionExpired,
 }) {
   const rights = getObjectRights(permissions, objectKey)
+  const fieldRights = getFieldRights(permissions, objectKey)
 
   const [page, setPage] = useState(1)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState({})
   const [refreshTick, setRefreshTick] = useState(0)
 
@@ -32,6 +37,7 @@ export function useCrmRecordsPane({
 
   const [optionsData, setOptionsData] = useState({
     assignees: [],
+    roles: [],
     accounts: [],
     contacts: [],
     constants: {},
@@ -46,10 +52,20 @@ export function useCrmRecordsPane({
   const [deletingInspector, setDeletingInspector] = useState(false)
   const [actionNotice, setActionNotice] = useState('')
 
+  useEffect(() => {
+    const trimmed = search.trim()
+    if (!trimmed) return undefined
+    const timer = setTimeout(() => {
+      setDebouncedSearch(trimmed)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [search])
+
+  const effectiveSearch = search.trim() ? debouncedSearch : ''
   const serializedFilters = JSON.stringify(filters)
   const requestKey =
-    workspaceSlug && rights.canRead
-      ? `${workspaceSlug}:${objectKey}:${page}:${search.trim()}:${serializedFilters}:${refreshTick}`
+    workspaceSlug && rights.canRead && enabled
+      ? `${workspaceSlug}:${objectKey}:${page}:${effectiveSearch}:${serializedFilters}:${refreshTick}:${permissionsRevision}`
       : ''
   const loading = Boolean(requestKey && completedRequestKey !== requestKey)
 
@@ -75,7 +91,7 @@ export function useCrmRecordsPane({
     const params = {
       page,
       page_size: 25,
-      ...(search.trim() ? { q: search.trim() } : {}),
+      ...(effectiveSearch ? { q: effectiveSearch } : {}),
       ...filters,
     }
 
@@ -110,7 +126,7 @@ export function useCrmRecordsPane({
     return () => {
       cancelled = true
     }
-  }, [requestKey, workspaceSlug, objectKey, page, search, filters, onSessionExpired])
+  }, [requestKey, workspaceSlug, objectKey, page, effectiveSearch, filters, onSessionExpired])
 
   useEffect(() => {
     if (!workspaceSlug || !needOptions) return undefined
@@ -126,6 +142,7 @@ export function useCrmRecordsPane({
         if (response.ok && data) {
           setOptionsData({
             assignees: data.assignees || [],
+            roles: data.roles || [],
             accounts: data.accounts || [],
             contacts: data.contacts || [],
             constants: data.constants || {},
@@ -139,7 +156,7 @@ export function useCrmRecordsPane({
     return () => {
       cancelled = true
     }
-  }, [workspaceSlug, needOptions, refreshTick, onSessionExpired])
+  }, [workspaceSlug, needOptions, permissionsRevision, onSessionExpired])
 
   const openInspector = useCallback(
     async (recordId) => {
@@ -178,6 +195,36 @@ export function useCrmRecordsPane({
     await openInspector(activeRecord.id)
     reload()
   }, [activeRecord, openInspector, reload])
+
+  useEffect(() => {
+    if (!permissionsRevision || !inspectorOpen || !activeRecord?.id || !rights.canRead || !workspaceSlug) {
+      return undefined
+    }
+    let cancelled = false
+    getCrmRecord(workspaceSlug, objectKey, activeRecord.id)
+      .then(({ response, data }) => {
+        if (cancelled) return
+        if (!response.ok) {
+          if (response.status === 401) {
+            onSessionExpired?.(data?.error || data?.detail)
+            return
+          }
+          if (response.status === 403 || response.status === 404) {
+            setInspectorOpen(false)
+            setActiveRecord(null)
+          }
+          return
+        }
+        setActiveRecord(data.record || null)
+        setActiveRecordPermissions(data.permissions || null)
+      })
+      .catch(() => {
+        // Ignore transient errors during permission sync refresh.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [permissionsRevision]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const targetId = initialInspectRequest?.recordId
@@ -355,6 +402,7 @@ export function useCrmRecordsPane({
 
   return {
     rights,
+    fieldRights: activeRecordPermissions?.field_rights || listData?.permissions?.field_rights || fieldRights,
     records: listData?.results || [],
     summary: listData?.summary || {},
     page: listData?.page ?? page,
@@ -371,7 +419,7 @@ export function useCrmRecordsPane({
     loadError,
     optionsData,
     reload,
-    inspectorOpen,
+    inspectorOpen: inspectorOpen && rights.canRead,
     inspectorLoading,
     inspectorError,
     setInspectorError,
