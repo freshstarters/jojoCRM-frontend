@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   convertLeadRecord,
   fetchLeadConversionPreview,
+  isFieldHidden,
+  isFieldReadOnly,
   listCrmRecords,
 } from '../../service/crmService.js'
 import { Button } from '../Button.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { Select } from '../Select.jsx'
+import { FieldLabel } from './FieldLabel.jsx'
 import { RecordRelationPicker } from './RecordRelationPicker.jsx'
 
 const FALLBACK_STAGE_OPTIONS = [
@@ -357,7 +360,36 @@ function ConvertLeadModalContent({
   }, [previewData?.deal_stages])
 
   const canUpdateContact = previewData?.capabilities?.can_update_contact !== false
+  const canLinkStandaloneContact =
+    previewData?.capabilities?.can_link_standalone_contact !== undefined
+      ? Boolean(previewData.capabilities.can_link_standalone_contact)
+      : canUpdateContact
   const capabilities = previewData?.capabilities || {}
+  const accountFieldRights = previewData?.field_rights?.account || {}
+  const contactFieldRights = previewData?.field_rights?.contact || {}
+  const dealFieldRights = previewData?.field_rights?.deal || {}
+
+  const hideAccName = isFieldHidden(accountFieldRights, 'name')
+  const roAccName = isFieldReadOnly(accountFieldRights, 'name')
+  const hideAccCity = isFieldHidden(accountFieldRights, 'city')
+  const roAccCity = isFieldReadOnly(accountFieldRights, 'city')
+
+  const hideConName = isFieldHidden(contactFieldRights, 'name')
+  const roConName = isFieldReadOnly(contactFieldRights, 'name')
+  const hideConTitle = isFieldHidden(contactFieldRights, 'title')
+  const roConTitle = isFieldReadOnly(contactFieldRights, 'title')
+
+  const hideDealTitle = isFieldHidden(dealFieldRights, 'title')
+  const roDealTitle = isFieldReadOnly(dealFieldRights, 'title')
+  const hideDealAmount = isFieldHidden(dealFieldRights, 'amount')
+  const roDealAmount = isFieldReadOnly(dealFieldRights, 'amount')
+  const hideDealStage = isFieldHidden(dealFieldRights, 'stage')
+  const roDealStage = isFieldReadOnly(dealFieldRights, 'stage')
+  const hideDealClose = isFieldHidden(dealFieldRights, 'target_close_date')
+  const roDealClose = isFieldReadOnly(dealFieldRights, 'target_close_date')
+  const hideDealProb = isFieldHidden(dealFieldRights, 'win_probability')
+  const roDealProb = isFieldReadOnly(dealFieldRights, 'win_probability')
+
   const isConverted = Boolean(
     previewData?.already_converted || selectedLead?.status === 'converted',
   )
@@ -366,7 +398,7 @@ function ConvertLeadModalContent({
       contactMode === 'reuse' &&
       selectedReusedContact &&
       !selectedReusedContact.account_id &&
-      !canUpdateContact,
+      !canLinkStandaloneContact,
   )
 
   async function handleSubmit(event) {
@@ -375,7 +407,7 @@ function ConvertLeadModalContent({
     setSubmitError('')
 
     if (!isConverted) {
-      if (effectiveAccountMode === 'create' && !accountName.trim()) {
+      if (effectiveAccountMode === 'create' && !hideAccName && !roAccName && !accountName.trim()) {
         setSubmitError('Account name is required when creating a new Account.')
         return
       }
@@ -383,7 +415,7 @@ function ConvertLeadModalContent({
         setSubmitError('Select an existing Account to reuse or switch to Create new.')
         return
       }
-      if (contactMode === 'create' && !contactName.trim()) {
+      if (contactMode === 'create' && !hideConName && !roConName && !contactName.trim()) {
         setSubmitError(
           `${contactLabel} name is required when creating a new ${contactLabel}.`,
         )
@@ -397,34 +429,54 @@ function ConvertLeadModalContent({
       }
       if (cannotLinkStandaloneContact) {
         setSubmitError(
-          `Your role lacks permission to update ${contactLabel}s, so standalone ${contactLabel} "${selectedReusedContact.name}" cannot be linked to an Account. Select a ${contactLabel} already on an Account or create a new one.`,
+          `Your role cannot link standalone ${contactLabel} "${selectedReusedContact.name}" to an Account. Select a ${contactLabel} already on an Account or create a new one.`,
         )
         return
       }
-      if (!dealTitle.trim()) {
+      if (!hideDealTitle && !roDealTitle && !dealTitle.trim()) {
         setSubmitError('Deal title is required.')
         return
       }
     }
 
-    const payload = {
-      ...(effectiveAccountMode === 'reuse'
-        ? { account_id: Number(effectiveAccountId) }
-        : {
-            account_name: accountName.trim(),
-            account_city: accountCity.trim(),
-          }),
-      ...(contactMode === 'reuse'
-        ? { contact_id: Number(selectedContactId) }
-        : {
-            contact_name: contactName.trim(),
-            contact_title: contactTitle.trim(),
-          }),
-      deal_title: dealTitle.trim() || undefined,
-      deal_amount: dealAmount === '' ? '0.00' : dealAmount,
-      deal_stage: dealStage || stageOptions[0]?.value || undefined,
-      target_close_date: targetCloseDate || null,
-      win_probability: winProbability === '' ? null : Number(winProbability),
+    const payload = {}
+    if (effectiveAccountMode === 'reuse') {
+      payload.account_id = Number(effectiveAccountId)
+    } else {
+      if (!hideAccName && !roAccName) {
+        payload.account_name = accountName.trim()
+      }
+      if (!hideAccCity && !roAccCity) {
+        payload.account_city = accountCity.trim()
+      }
+    }
+
+    if (contactMode === 'reuse') {
+      payload.contact_id = Number(selectedContactId)
+    } else {
+      if (!hideConName && !roConName) {
+        payload.contact_name = contactName.trim()
+      }
+      if (!hideConTitle && !roConTitle) {
+        payload.contact_title = contactTitle.trim()
+      }
+    }
+
+    if (!hideDealTitle && !roDealTitle && dealTitle.trim()) {
+      payload.deal_title = dealTitle.trim()
+    }
+    if (!hideDealAmount && !roDealAmount) {
+      payload.deal_amount = dealAmount === '' ? '0.00' : dealAmount
+    }
+    if (!hideDealStage && !roDealStage) {
+      const nextStage = dealStage || stageOptions[0]?.value
+      if (nextStage) payload.deal_stage = nextStage
+    }
+    if (!hideDealClose && !roDealClose) {
+      payload.target_close_date = targetCloseDate || null
+    }
+    if (!hideDealProb && !roDealProb) {
+      payload.win_probability = winProbability === '' ? null : Number(winProbability)
     }
 
     setSubmitting(true)
@@ -625,45 +677,53 @@ function ConvertLeadModalContent({
               ) : null}
 
               {effectiveAccountMode === 'create' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="convert-account-name"
-                      className="block font-medium text-body mb-1"
-                    >
-                      Account Name
-                    </label>
-                    <input
-                      id="convert-account-name"
-                      type="text"
-                      value={accountName}
-                      disabled={submitting}
-                      onChange={(e) => {
-                        setAccountName(e.target.value)
-                        syncDefaultDealTitle(e.target.value)
-                      }}
-                      placeholder="e.g. Volta Aluminum Co"
-                      className="crm-input w-full px-3 py-2"
-                    />
+                !hideAccName || !hideAccCity ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {!hideAccName ? (
+                      <div className="space-y-1">
+                        <FieldLabel
+                          htmlFor="convert-account-name"
+                          label="Account Name"
+                          readOnly={roAccName}
+                        />
+                        <input
+                          id="convert-account-name"
+                          type="text"
+                          value={accountName}
+                          disabled={submitting || roAccName}
+                          onChange={(e) => {
+                            setAccountName(e.target.value)
+                            syncDefaultDealTitle(e.target.value)
+                          }}
+                          placeholder="e.g. Volta Aluminum Co"
+                          className="crm-input w-full px-3 py-2"
+                        />
+                      </div>
+                    ) : null}
+                    {!hideAccCity ? (
+                      <div className="space-y-1">
+                        <FieldLabel
+                          htmlFor="convert-account-city"
+                          label="City"
+                          readOnly={roAccCity}
+                        />
+                        <input
+                          id="convert-account-city"
+                          type="text"
+                          value={accountCity}
+                          disabled={submitting || roAccCity}
+                          onChange={(e) => setAccountCity(e.target.value)}
+                          placeholder="e.g. Accra"
+                          className="crm-input w-full px-3 py-2"
+                        />
+                      </div>
+                    ) : null}
                   </div>
-                  <div>
-                    <label
-                      htmlFor="convert-account-city"
-                      className="block font-medium text-body mb-1"
-                    >
-                      City
-                    </label>
-                    <input
-                      id="convert-account-city"
-                      type="text"
-                      value={accountCity}
-                      disabled={submitting}
-                      onChange={(e) => setAccountCity(e.target.value)}
-                      placeholder="e.g. Accra"
-                      className="crm-input w-full px-3 py-2"
-                    />
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-sub">
+                    Account fields are hidden for your role; defaults from the lead will be applied.
+                  </p>
+                )
               ) : (
                 <RecordRelationPicker
                   id="convert-account-reuse"
@@ -737,42 +797,50 @@ function ConvertLeadModalContent({
               </div>
 
               {contactMode === 'create' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label
-                      htmlFor="convert-contact-name"
-                      className="block font-medium text-body mb-1"
-                    >
-                      {contactLabel} Name
-                    </label>
-                    <input
-                      id="convert-contact-name"
-                      type="text"
-                      value={contactName}
-                      disabled={submitting}
-                      onChange={(e) => setContactName(e.target.value)}
-                      placeholder="e.g. Abena Koranteng"
-                      className="crm-input w-full px-3 py-2"
-                    />
+                !hideConName || !hideConTitle ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {!hideConName ? (
+                      <div className="space-y-1">
+                        <FieldLabel
+                          htmlFor="convert-contact-name"
+                          label={`${contactLabel} Name`}
+                          readOnly={roConName}
+                        />
+                        <input
+                          id="convert-contact-name"
+                          type="text"
+                          value={contactName}
+                          disabled={submitting || roConName}
+                          onChange={(e) => setContactName(e.target.value)}
+                          placeholder="e.g. Abena Koranteng"
+                          className="crm-input w-full px-3 py-2"
+                        />
+                      </div>
+                    ) : null}
+                    {!hideConTitle ? (
+                      <div className="space-y-1">
+                        <FieldLabel
+                          htmlFor="convert-contact-title"
+                          label="Title"
+                          readOnly={roConTitle}
+                        />
+                        <input
+                          id="convert-contact-title"
+                          type="text"
+                          value={contactTitle}
+                          disabled={submitting || roConTitle}
+                          onChange={(e) => setContactTitle(e.target.value)}
+                          placeholder="e.g. Operations Lead"
+                          className="crm-input w-full px-3 py-2"
+                        />
+                      </div>
+                    ) : null}
                   </div>
-                  <div>
-                    <label
-                      htmlFor="convert-contact-title"
-                      className="block font-medium text-body mb-1"
-                    >
-                      Title
-                    </label>
-                    <input
-                      id="convert-contact-title"
-                      type="text"
-                      value={contactTitle}
-                      disabled={submitting}
-                      onChange={(e) => setContactTitle(e.target.value)}
-                      placeholder="e.g. Operations Lead"
-                      className="crm-input w-full px-3 py-2"
-                    />
-                  </div>
-                </div>
+                ) : (
+                  <p className="text-sub">
+                    {contactLabel} fields are hidden for your role; defaults from the lead will be applied.
+                  </p>
+                )
               ) : (
                 <div className="space-y-2">
                   <RecordRelationPicker
@@ -785,6 +853,11 @@ function ConvertLeadModalContent({
                     selectedRecord={selectedReusedContact}
                     suggestedItems={contactMatches}
                     suggestedHeading="Suggested matches"
+                    extraParams={
+                      effectiveAccountMode === 'reuse' && effectiveAccountId
+                        ? { compatible_account_id: effectiveAccountId }
+                        : undefined
+                    }
                     allowEmpty={false}
                     placeholder={`Search or pick an existing ${contactLabel}...`}
                     searchPlaceholder={`Search all workspace ${contactLabel}s...`}
@@ -798,8 +871,8 @@ function ConvertLeadModalContent({
                       const hasAcc = Boolean(con.account_id || con.account?.id)
                       return [
                         con.match_reasons?.length ? `Match: ${con.match_reasons.join(', ')}` : '',
-                        !hasAcc && !canUpdateContact
-                          ? `Requires ${contactLabel} update permission`
+                        !hasAcc && !canLinkStandaloneContact
+                          ? `Cannot link standalone ${contactLabel} to an Account`
                           : '',
                         con.email,
                         con.phone,
@@ -814,7 +887,7 @@ function ConvertLeadModalContent({
                   {cannotLinkStandaloneContact ? (
                     <FeedbackNotice
                       tone="info"
-                      message={`Linking standalone ${contactLabel} "${selectedReusedContact.name}" to an Account requires ${contactLabel} update permission. Select a ${contactLabel} already on an Account or create a new one.`}
+                      message={`Your role cannot link standalone ${contactLabel} "${selectedReusedContact.name}" to an Account. Select a ${contactLabel} already on an Account or create a new one.`}
                     />
                   ) : null}
                 </div>
@@ -824,101 +897,110 @@ function ConvertLeadModalContent({
             {/* Deal section */}
             <div className="space-y-3 pt-2 border-t crm-border">
               <div className="font-semibold text-main">Deal</div>
-              <div>
-                <label
-                  htmlFor="convert-deal-title"
-                  className="block font-medium text-body mb-1"
-                >
-                  Deal Title
-                </label>
-                <input
-                  id="convert-deal-title"
-                  type="text"
-                  value={dealTitle}
-                  disabled={submitting}
-                  onChange={(e) => {
-                    setDealTitleDirty(true)
-                    setDealTitle(e.target.value)
-                  }}
-                  placeholder="e.g. VALCO Smelter Control Panels"
-                  className="crm-input w-full px-3 py-2"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label
-                    htmlFor="convert-deal-amount"
-                    className="block font-medium text-body mb-1"
-                  >
-                    Estimated Deal Value (GHS)
-                  </label>
-                  <input
-                    id="convert-deal-amount"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={dealAmount}
-                    disabled={submitting}
-                    onChange={(e) => setDealAmount(e.target.value)}
-                    className="crm-input w-full px-3 py-2 num-tabular"
+              {!hideDealTitle ? (
+                <div className="space-y-1">
+                  <FieldLabel
+                    htmlFor="convert-deal-title"
+                    label="Deal Title"
+                    readOnly={roDealTitle}
                   />
-                </div>
-                <div>
-                  <label
-                    htmlFor="convert-deal-stage"
-                    className="block font-medium text-body mb-1"
-                  >
-                    Initial Pipeline Stage
-                  </label>
-                  <Select
-                    id="convert-deal-stage"
-                    ariaLabel="Initial pipeline stage"
-                    value={dealStage}
-                    onChange={setDealStage}
-                    options={stageOptions}
-                    disabled={submitting}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label
-                    htmlFor="convert-deal-close"
-                    className="block font-medium text-body mb-1"
-                  >
-                    Target Close Date
-                  </label>
                   <input
-                    id="convert-deal-close"
-                    type="date"
-                    value={targetCloseDate}
-                    disabled={submitting}
-                    onChange={(e) => setTargetCloseDate(e.target.value)}
+                    id="convert-deal-title"
+                    type="text"
+                    value={dealTitle}
+                    disabled={submitting || roDealTitle}
+                    onChange={(e) => {
+                      setDealTitleDirty(true)
+                      setDealTitle(e.target.value)
+                    }}
+                    placeholder="e.g. VALCO Smelter Control Panels"
                     className="crm-input w-full px-3 py-2"
                   />
                 </div>
-                <div>
-                  <label
-                    htmlFor="convert-deal-prob"
-                    className="block font-medium text-body mb-1"
-                  >
-                    Win Probability (%)
-                  </label>
-                  <input
-                    id="convert-deal-prob"
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={winProbability}
-                    disabled={submitting}
-                    onChange={(e) => setWinProbability(e.target.value)}
-                    placeholder="0 - 100"
-                    className="crm-input w-full px-3 py-2 num-tabular"
-                  />
+              ) : null}
+
+              {!hideDealAmount || !hideDealStage ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {!hideDealAmount ? (
+                    <div className="space-y-1">
+                      <FieldLabel
+                        htmlFor="convert-deal-amount"
+                        label="Estimated Deal Value (GHS)"
+                        readOnly={roDealAmount}
+                      />
+                      <input
+                        id="convert-deal-amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={dealAmount}
+                        disabled={submitting || roDealAmount}
+                        onChange={(e) => setDealAmount(e.target.value)}
+                        className="crm-input w-full px-3 py-2 num-tabular"
+                      />
+                    </div>
+                  ) : null}
+                  {!hideDealStage ? (
+                    <div className="space-y-1">
+                      <FieldLabel
+                        htmlFor="convert-deal-stage"
+                        label="Initial Pipeline Stage"
+                        readOnly={roDealStage}
+                      />
+                      <Select
+                        id="convert-deal-stage"
+                        ariaLabel="Initial pipeline stage"
+                        value={dealStage}
+                        onChange={setDealStage}
+                        options={stageOptions}
+                        disabled={submitting || roDealStage}
+                      />
+                    </div>
+                  ) : null}
                 </div>
-              </div>
+              ) : null}
+
+              {!hideDealClose || !hideDealProb ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {!hideDealClose ? (
+                    <div className="space-y-1">
+                      <FieldLabel
+                        htmlFor="convert-deal-close"
+                        label="Target Close Date"
+                        readOnly={roDealClose}
+                      />
+                      <input
+                        id="convert-deal-close"
+                        type="date"
+                        value={targetCloseDate}
+                        disabled={submitting || roDealClose}
+                        onChange={(e) => setTargetCloseDate(e.target.value)}
+                        className="crm-input w-full px-3 py-2"
+                      />
+                    </div>
+                  ) : null}
+                  {!hideDealProb ? (
+                    <div className="space-y-1">
+                      <FieldLabel
+                        htmlFor="convert-deal-prob"
+                        label="Win Probability (%)"
+                        readOnly={roDealProb}
+                      />
+                      <input
+                        id="convert-deal-prob"
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={winProbability}
+                        disabled={submitting || roDealProb}
+                        onChange={(e) => setWinProbability(e.target.value)}
+                        placeholder="0 - 100"
+                        className="crm-input w-full px-3 py-2 num-tabular"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
           </>
         ) : null}

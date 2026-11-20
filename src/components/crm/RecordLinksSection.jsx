@@ -63,7 +63,12 @@ export function RecordLinksSection({
         paneId: 'deals',
         recordId: d.id,
         label: d.title,
-        meta: `${d.stage} · ${formatGhs(d.amount)}`,
+        meta: [
+          d.stage,
+          d.amount !== undefined && d.amount !== null ? formatGhs(d.amount) : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
       })),
     })
   }
@@ -75,7 +80,9 @@ export function RecordLinksSection({
         paneId: 'jobs',
         recordId: j.id,
         label: j.title,
-        meta: j.due_date ? `${j.status} · Due ${j.due_date}` : j.status,
+        meta: [j.status, j.due_date ? `Due ${j.due_date}` : '']
+          .filter(Boolean)
+          .join(' · '),
       })),
     })
   }
@@ -90,7 +97,7 @@ export function RecordLinksSection({
         paneId: 'appointments',
         recordId: a.id,
         label: a.title,
-        meta: a.status,
+        meta: a.status || '',
       })),
     })
   }
@@ -119,7 +126,7 @@ export function RecordLinksSection({
         paneId: 'tickets',
         recordId: t.id,
         label: t.title,
-        meta: `${t.status} · ${t.priority}`,
+        meta: [t.status, t.priority].filter(Boolean).join(' · '),
       })),
     })
   }

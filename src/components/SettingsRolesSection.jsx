@@ -74,10 +74,11 @@ export function SettingsRolesSection({
   const [savingRoleId, setSavingRoleId] = useState(null)
   const [roleFeedback, setRoleFeedback] = useState({})
 
-  // Clone from Staff modal state
+  // Clone role modal state
   const [cloneModalOpen, setCloneModalOpen] = useState(false)
   const [cloneName, setCloneName] = useState('')
   const [cloneDescription, setCloneDescription] = useState('')
+  const [cloneSourceRoleId, setCloneSourceRoleId] = useState('')
   const [cloning, setCloning] = useState(false)
   const [cloneError, setCloneError] = useState('')
 
@@ -370,10 +371,14 @@ export function SettingsRolesSection({
     setGlobalNotice('')
     setCloning(true)
     try {
-      const { response, data } = await cloneWorkspaceRole(effectiveSlug, {
+      const clonePayload = {
         name: trimmed,
         description: cloneDescription.trim(),
-      })
+      }
+      if (cloneSourceRoleId) {
+        clonePayload.source_role_id = Number(cloneSourceRoleId)
+      }
+      const { response, data } = await cloneWorkspaceRole(effectiveSlug, clonePayload)
       if (!response.ok) {
         if (response.status === 401) {
           onSessionExpired?.(data?.error || data?.detail)
@@ -385,7 +390,8 @@ export function SettingsRolesSection({
       setCloneModalOpen(false)
       setCloneName('')
       setCloneDescription('')
-      setGlobalNotice(data?.message || `Cloned role "${trimmed}" from Staff.`)
+      setCloneSourceRoleId('')
+      setGlobalNotice(data?.message || `Cloned role "${trimmed}".`)
       onAuditRecorded?.()
       setRefreshTick((prev) => prev + 1)
     } catch {
@@ -425,7 +431,23 @@ export function SettingsRolesSection({
     }
   }
 
-  const roles = rolesData?.roles || []
+  const roles = useMemo(() => rolesData?.roles || [], [rolesData?.roles])
+  const cloneSourceOptions = useMemo(
+    () =>
+      roles
+        .filter((r) => !r.is_owner)
+        .map((r) => ({
+          value: String(r.id),
+          label: r.is_default_staff ? `${r.name} (Default)` : r.name,
+        })),
+    [roles],
+  )
+  const defaultCloneSourceId = useMemo(() => {
+    const staff = roles.find((r) => r.is_default_staff)
+    if (staff) return String(staff.id)
+    const nonOwner = roles.find((r) => !r.is_owner)
+    return nonOwner ? String(nonOwner.id) : ''
+  }, [roles])
   const currentRoleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
   const activeSeats = rolesData?.active_seat_count ?? null
   const canManageRoles = Boolean(
@@ -438,7 +460,7 @@ export function SettingsRolesSection({
         <div>
           <h3 className="text-sm font-semibold text-main">Workspace roles</h3>
           <p className="text-xs text-sub mt-0.5">
-            Clone Staff to create custom roles with tailored capability switches, object rights, and field-level permissions. Owner always retains full visibility and access. Your current role is{' '}
+            Clone Staff or any custom role to create roles with tailored capability switches, object rights, and field-level permissions. Owner always retains full visibility and access. Your current role is{' '}
             <span className="font-medium text-main">{currentRoleName}</span>.
           </p>
         </div>
@@ -455,12 +477,13 @@ export function SettingsRolesSection({
               onClick={() => {
                 setCloneName('')
                 setCloneDescription('')
+                setCloneSourceRoleId(defaultCloneSourceId)
                 setCloneError('')
                 setCloneModalOpen(true)
               }}
               className="px-3 py-1.5 text-xs font-medium"
             >
-              Clone from Staff
+              Clone role
             </Button>
           ) : null}
           <RefreshButton
@@ -831,11 +854,11 @@ export function SettingsRolesSection({
         })}
       </div>
 
-      {/* Clone from Staff Modal */}
+      {/* Clone Role Modal */}
       <Modal
         open={cloneModalOpen}
-        title="Clone role from Staff"
-        subtitle="Copies Staff's object rights, field rights, and capability switches into a new custom role."
+        title="Clone role"
+        subtitle="Copies object rights, field rights, and capability switches from Staff or another custom role."
         onClose={() => {
           if (!cloning) setCloneModalOpen(false)
         }}
@@ -864,6 +887,21 @@ export function SettingsRolesSection({
       >
         <form id="clone-role-form" onSubmit={handleCloneSubmit} className="space-y-3 text-xs">
           <FeedbackNotice tone="danger" message={cloneError} />
+          {cloneSourceOptions.length > 0 ? (
+            <div className="space-y-1.5">
+              <label htmlFor="clone-role-source" className="block font-medium text-main">
+                Clone permissions from
+              </label>
+              <Select
+                id="clone-role-source"
+                ariaLabel="Clone permissions from"
+                value={cloneSourceRoleId || defaultCloneSourceId}
+                onChange={setCloneSourceRoleId}
+                options={cloneSourceOptions}
+                disabled={cloning}
+              />
+            </div>
+          ) : null}
           <div className="space-y-1.5">
             <label htmlFor="clone-role-name" className="block font-medium text-main">
               Role name
