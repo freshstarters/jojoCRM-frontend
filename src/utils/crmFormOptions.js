@@ -1,3 +1,31 @@
+export const VISIBILITY_OPTIONS = [
+  { value: 'workspace', label: 'Whole workspace' },
+  { value: 'role', label: 'One role' },
+  { value: 'owner', label: 'Owner only' },
+]
+
+export const VISIBILITY_FILTER_OPTIONS = [
+  { value: '', label: 'All sharing' },
+  { value: 'workspace', label: 'Whole workspace' },
+  { value: 'role', label: 'One role' },
+  { value: 'owner', label: 'Owner only' },
+]
+
+export function formatSharingLabel(record) {
+  const vis = record?.visibility || 'workspace'
+  if (vis === 'owner') return 'Owner only'
+  if (vis === 'role') {
+    return record?.shared_role?.name ? `Role: ${record.shared_role.name}` : 'One role'
+  }
+  return 'Workspace'
+}
+
+export function getSharingBadgeClass(visibility) {
+  if (visibility === 'owner') return 'badge badge-warn'
+  if (visibility === 'role') return 'badge badge-info'
+  return 'badge badge-neutral'
+}
+
 export function buildAccountSelectOptions(accounts = [], emptyLabel = 'No Account') {
   return [
     { value: '', label: emptyLabel },

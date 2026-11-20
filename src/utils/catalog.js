@@ -60,13 +60,33 @@ export function getActiveTableSummary(workspace) {
   }
 }
 
-export const SETTINGS_TABS = [
+export const BASE_SETTINGS_TABS = [
   { id: 'workspace', label: 'Workspace' },
   { id: 'packs', label: 'Packs' },
   { id: 'people', label: 'People' },
   { id: 'roles', label: 'Roles' },
   { id: 'security', label: 'Account & Security' },
 ]
+
+export const SETTINGS_TABS = BASE_SETTINGS_TABS
+
+export function getSettingsTabs(workspace) {
+  const enabledList = Array.isArray(workspace?.enabled_object_keys)
+    ? workspace.enabled_object_keys
+    : []
+  const hasDeal = enabledList.includes('deal')
+  if (!hasDeal) {
+    return BASE_SETTINGS_TABS
+  }
+  return [
+    { id: 'workspace', label: 'Workspace' },
+    { id: 'packs', label: 'Packs' },
+    { id: 'people', label: 'People' },
+    { id: 'roles', label: 'Roles' },
+    { id: 'pipelines', label: 'Pipelines' },
+    { id: 'security', label: 'Account & Security' },
+  ]
+}
 
 export const DEALS_SUBTABS = [
   { id: 'kanban', label: 'Board' },
@@ -289,7 +309,7 @@ export function buildSidebarGroups(workspace) {
           label: 'Settings',
           objectKeys: [],
           enabled: true,
-          subtabs: SETTINGS_TABS,
+          subtabs: getSettingsTabs(workspace),
         },
       ],
     },

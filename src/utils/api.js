@@ -19,6 +19,27 @@ export async function ensureCsrfToken() {
   return csrfToken
 }
 
+const permissionsVersionListeners = new Set()
+
+export function subscribePermissionsVersion(listener) {
+  if (typeof listener !== 'function') return () => {}
+  permissionsVersionListeners.add(listener)
+  return () => {
+    permissionsVersionListeners.delete(listener)
+  }
+}
+
+function notifyPermissionsVersion(version) {
+  if (!version) return
+  for (const listener of permissionsVersionListeners) {
+    try {
+      listener(version)
+    } catch {
+      // Ignore listener errors so API calls always complete cleanly.
+    }
+  }
+}
+
 async function requestJson(path, { method = 'GET', payload, includeCsrf = false } = {}) {
   const headers = {}
   if (includeCsrf) {
@@ -37,6 +58,10 @@ async function requestJson(path, { method = 'GET', payload, includeCsrf = false 
     headers,
     ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
   })
+  const headerPermVersion = response.headers?.get?.('X-Permissions-Version')
+  if (headerPermVersion) {
+    notifyPermissionsVersion(headerPermVersion)
+  }
   const data = await response.json().catch(() => ({}))
   return { response, data }
 }
@@ -53,8 +78,12 @@ export function apiPatch(path, payload = {}) {
   return requestJson(path, { method: 'PATCH', payload, includeCsrf: true })
 }
 
-export function apiDelete(path) {
-  return requestJson(path, { method: 'DELETE', includeCsrf: true })
+export function apiDelete(path, payload = undefined) {
+  return requestJson(path, {
+    method: 'DELETE',
+    ...(payload !== undefined ? { payload } : {}),
+    includeCsrf: true,
+  })
 }
 
 let inflightSessionRequest = null
