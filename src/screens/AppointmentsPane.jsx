@@ -4,9 +4,20 @@ import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
+import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import {
+  RecordSharingControl,
+  SharingBadge,
+} from '../components/crm/RecordSharingControl.jsx'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
 import {
+  filterWritablePayload,
+  isFieldHidden,
+  isFieldReadOnly,
+} from '../service/crmService.js'
+import {
+  VISIBILITY_FILTER_OPTIONS,
   buildAssigneeSelectOptions,
   buildContactSelectOptions,
 } from '../utils/crmFormOptions.js'
@@ -45,12 +56,20 @@ const EMPTY_FORM = {
   assignee_id: '',
   contact_id: '',
   notes: '',
+  visibility: 'workspace',
+  shared_role_id: '',
+}
+
+const APPOINTMENT_FIELD_MAP = {
+  assignee_id: 'assignee',
+  contact_id: 'contact',
 }
 
 export function AppointmentsPane({
   workspace,
   user,
   permissions,
+  permissionsRevision = 0,
   initialInspectRequest = null,
   onInspectRequestConsumed,
   onOpenLinkedRecord,
@@ -66,12 +85,21 @@ export function AppointmentsPane({
     workspaceSlug: workspace?.slug,
     objectKey: 'appointment',
     permissions,
+    permissionsRevision,
     initialInspectRequest,
     onInspectRequestConsumed,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
   })
+
+  const fr = pane.fieldRights
+  const hideTitle = isFieldHidden(fr, 'title')
+  const hideScheduledAt = isFieldHidden(fr, 'scheduled_at')
+  const hideStatus = isFieldHidden(fr, 'status')
+  const hideAssignee = isFieldHidden(fr, 'assignee')
+  const hideContact = isFieldHidden(fr, 'contact')
+  const hideNotes = isFieldHidden(fr, 'notes')
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState(EMPTY_FORM)
@@ -110,7 +138,20 @@ export function AppointmentsPane({
     assignee_id: active?.assignee_id ? String(active.assignee_id) : '',
     contact_id: active?.contact_id ? String(active.contact_id) : '',
     notes: active?.notes || '',
+    visibility: active?.visibility || 'workspace',
+    shared_role_id: active?.shared_role_id ? String(active.shared_role_id) : '',
   }
+
+  const columns = useMemo(() => {
+    const cols = [{ key: 'title', label: 'Title' }]
+    if (!hideScheduledAt) cols.push({ key: 'time', label: 'Time' })
+    if (!hideStatus) cols.push({ key: 'status', label: 'Status' })
+    if (!hideContact) cols.push({ key: 'contact', label: contactLabel })
+    if (!hideAssignee) cols.push({ key: 'assignee', label: 'Assignee' })
+    cols.push({ key: 'sharing', label: 'Sharing' })
+    cols.push({ key: 'action', label: 'Action', align: 'right' })
+    return cols
+  }, [hideScheduledAt, hideStatus, hideContact, hideAssignee, contactLabel])
 
   function openCreateModal() {
     setCreateForm(EMPTY_FORM)
@@ -120,27 +161,42 @@ export function AppointmentsPane({
 
   async function handleCreateSubmit(event) {
     event.preventDefault()
-    if (!createForm.title.trim()) {
+    if (!hideTitle && !isFieldReadOnly(fr, 'title') && !createForm.title.trim()) {
       setCreateError('Appointment title is required.')
       return
     }
-    if (!createForm.scheduled_at) {
+    if (!hideScheduledAt && !isFieldReadOnly(fr, 'scheduled_at') && !createForm.scheduled_at) {
       setCreateError('Appointment time is required.')
       return
     }
-    if (!createForm.contact_id) {
+    if (!hideContact && !isFieldReadOnly(fr, 'contact') && !createForm.contact_id) {
       setCreateError(`${contactLabel} is required.`)
+      return
+    }
+    if (createForm.visibility === 'role' && !createForm.shared_role_id) {
+      setCreateError('Select a role to share this appointment with.')
       return
     }
     setCreateError('')
     setCreating(true)
+    const fieldPayload = filterWritablePayload(
+      {
+        title: createForm.title.trim(),
+        scheduled_at: createForm.scheduled_at,
+        status: createForm.status,
+        assignee_id: createForm.assignee_id ? Number(createForm.assignee_id) : null,
+        contact_id: createForm.contact_id ? Number(createForm.contact_id) : null,
+        notes: createForm.notes,
+      },
+      fr,
+      APPOINTMENT_FIELD_MAP,
+    )
     const res = await pane.createRecord({
-      title: createForm.title.trim(),
-      scheduled_at: createForm.scheduled_at,
-      status: createForm.status,
-      assignee_id: createForm.assignee_id ? Number(createForm.assignee_id) : null,
-      contact_id: Number(createForm.contact_id),
-      notes: createForm.notes,
+      ...fieldPayload,
+      visibility: createForm.visibility,
+      ...(createForm.visibility === 'role'
+        ? { shared_role_id: Number(createForm.shared_role_id) }
+        : {}),
     })
     setCreating(false)
     if (!res.ok) {
@@ -151,26 +207,43 @@ export function AppointmentsPane({
   }
 
   async function handleSaveInspector() {
-    if (!formValues.title.trim()) {
+    if (!hideTitle && !isFieldReadOnly(fr, 'title') && !formValues.title.trim()) {
       setValidationError('Appointment title is required.')
       return
     }
-    if (!formValues.scheduled_at) {
+    if (!hideScheduledAt && !isFieldReadOnly(fr, 'scheduled_at') && !formValues.scheduled_at) {
       setValidationError('Appointment time is required.')
       return
     }
-    if (!formValues.contact_id) {
+    if (!hideContact && !isFieldReadOnly(fr, 'contact') && !formValues.contact_id) {
       setValidationError(`${contactLabel} is required.`)
       return
     }
     setValidationError('')
+    const fieldPayload = filterWritablePayload(
+      {
+        title: formValues.title.trim(),
+        scheduled_at: formValues.scheduled_at,
+        status: formValues.status,
+        assignee_id: formValues.assignee_id ? Number(formValues.assignee_id) : null,
+        contact_id: formValues.contact_id ? Number(formValues.contact_id) : null,
+        notes: formValues.notes,
+      },
+      fr,
+      APPOINTMENT_FIELD_MAP,
+    )
+    const sharingPayload = active?.can_manage_sharing
+      ? {
+          visibility: formValues.visibility,
+          shared_role_id:
+            formValues.visibility === 'role' && formValues.shared_role_id
+              ? Number(formValues.shared_role_id)
+              : null,
+        }
+      : {}
     const ok = await pane.saveInspectorRecord({
-      title: formValues.title.trim(),
-      scheduled_at: formValues.scheduled_at,
-      status: formValues.status,
-      assignee_id: formValues.assignee_id ? Number(formValues.assignee_id) : null,
-      contact_id: Number(formValues.contact_id),
-      notes: formValues.notes,
+      ...fieldPayload,
+      ...sharingPayload,
     })
     if (ok) {
       setDraft(null)
@@ -200,16 +273,20 @@ export function AppointmentsPane({
             value: pane.totalCount,
             caption: 'Matching current filter',
           },
-          {
-            label: 'Upcoming',
-            value: pane.summary?.upcoming_count ?? 0,
-            caption: 'Scheduled or confirmed',
-          },
-          {
-            label: 'Completed',
-            value: pane.summary?.completed_count ?? 0,
-            caption: 'Finished sessions',
-          },
+          ...(!hideStatus
+            ? [
+                {
+                  label: 'Upcoming',
+                  value: pane.summary?.upcoming_count ?? 0,
+                  caption: 'Scheduled or confirmed',
+                },
+                {
+                  label: 'Completed',
+                  value: pane.summary?.completed_count ?? 0,
+                  caption: 'Finished sessions',
+                },
+              ]
+            : []),
         ]}
         toolbarCaption={`Open an appointment to edit time (${userTimezone}), status, assignee, linked ${contactLabel.toLowerCase()}, or log activities.`}
         searchValue={pane.search}
@@ -217,22 +294,35 @@ export function AppointmentsPane({
         searchPlaceholder={`Search appointments by title, ${contactLabel.toLowerCase()}, or assignee...`}
         filters={
           <>
+            {!hideStatus ? (
+              <div className="w-40">
+                <Select
+                  id="appointment-status-filter"
+                  ariaLabel="Filter appointments by status"
+                  value={pane.filters.status || ''}
+                  onChange={(val) => pane.updateFilter('status', val)}
+                  options={STATUS_FILTER_OPTIONS}
+                />
+              </div>
+            ) : null}
+            {!hideAssignee ? (
+              <div className="w-52">
+                <Select
+                  id="appointment-assignee-filter"
+                  ariaLabel="Filter appointments by assignee"
+                  value={pane.filters.assignee_id || ''}
+                  onChange={(val) => pane.updateFilter('assignee_id', val)}
+                  options={assigneeFilterOptions}
+                />
+              </div>
+            ) : null}
             <div className="w-40">
               <Select
-                id="appointment-status-filter"
-                ariaLabel="Filter appointments by status"
-                value={pane.filters.status || ''}
-                onChange={(val) => pane.updateFilter('status', val)}
-                options={STATUS_FILTER_OPTIONS}
-              />
-            </div>
-            <div className="w-52">
-              <Select
-                id="appointment-assignee-filter"
-                ariaLabel="Filter appointments by assignee"
-                value={pane.filters.assignee_id || ''}
-                onChange={(val) => pane.updateFilter('assignee_id', val)}
-                options={assigneeFilterOptions}
+                id="appointment-visibility-filter"
+                ariaLabel="Filter appointments by sharing"
+                value={pane.filters.visibility || ''}
+                onChange={(val) => pane.updateFilter('visibility', val)}
+                options={VISIBILITY_FILTER_OPTIONS}
               />
             </div>
           </>
@@ -241,32 +331,38 @@ export function AppointmentsPane({
         error={pane.loadError}
         records={pane.records}
         emptyMessage="No appointments yet."
-        columns={[
-          { key: 'title', label: 'Title' },
-          { key: 'time', label: 'Time' },
-          { key: 'status', label: 'Status' },
-          { key: 'contact', label: contactLabel },
-          { key: 'assignee', label: 'Assignee' },
-          { key: 'action', label: 'Action', align: 'right' },
-        ]}
+        columns={columns}
         renderRow={(apt) => (
           <tr
             key={apt.id}
             className="crm-hover cursor-pointer"
             onClick={() => handleInspect(apt.id)}
           >
-            <td className="py-3 px-4 font-medium text-main">{apt.title}</td>
-            <td className="py-3 px-4 text-sub num-tabular">
-              {formatDateTime(apt.scheduled_at, userTimezone)}
+            <td className="py-3 px-4 font-medium text-main">
+              {apt.title ?? apt.display_label}
             </td>
+            {!hideScheduledAt ? (
+              <td className="py-3 px-4 text-sub num-tabular">
+                {formatDateTime(apt.scheduled_at, userTimezone)}
+              </td>
+            ) : null}
+            {!hideStatus ? (
+              <td className="py-3 px-4">
+                <span className={STATUS_BADGES[apt.status] || 'badge badge-neutral'}>
+                  {apt.status}
+                </span>
+              </td>
+            ) : null}
+            {!hideContact ? (
+              <td className="py-3 px-4 text-sub">{apt.contact?.name || 'Not linked'}</td>
+            ) : null}
+            {!hideAssignee ? (
+              <td className="py-3 px-4 text-sub break-all">
+                {apt.assignee?.email || 'Unassigned'}
+              </td>
+            ) : null}
             <td className="py-3 px-4">
-              <span className={STATUS_BADGES[apt.status] || 'badge badge-neutral'}>
-                {apt.status}
-              </span>
-            </td>
-            <td className="py-3 px-4 text-sub">{apt.contact?.name || 'Not linked'}</td>
-            <td className="py-3 px-4 text-sub break-all">
-              {apt.assignee?.email || 'Unassigned'}
+              <SharingBadge record={apt} />
             </td>
             <td
               className="py-3 px-4 text-right"
@@ -329,96 +425,109 @@ export function AppointmentsPane({
           className="space-y-3 text-xs"
         >
           <FeedbackNotice tone="danger" message={createError} />
-          <div>
-            <label htmlFor="new-apt-title" className="block font-medium text-body mb-1">
-              Appointment title
-            </label>
-            <input
-              id="new-apt-title"
-              type="text"
-              required
-              value={createForm.title}
-              onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. Initial site walkthrough"
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-apt-time" className="block font-medium text-body mb-1">
-                Time ({userTimezone})
-              </label>
+          {!hideTitle ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-apt-title" label="Appointment title" readOnly={isFieldReadOnly(fr, 'title')} />
               <input
-                id="new-apt-time"
-                type="datetime-local"
-                required
-                value={createForm.scheduled_at}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, scheduled_at: e.target.value }))
-                }
-                disabled={creating}
-                className="crm-input w-full px-3 py-2 num-tabular"
+                id="new-apt-title"
+                type="text"
+                required={!isFieldReadOnly(fr, 'title')}
+                value={createForm.title}
+                onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. Initial site walkthrough"
+                disabled={creating || isFieldReadOnly(fr, 'title')}
+                className="crm-input w-full px-3 py-2"
               />
             </div>
-            <div>
-              <label htmlFor="new-apt-status" className="block font-medium text-body mb-1">
-                Status
-              </label>
-              <Select
-                id="new-apt-status"
-                ariaLabel="Appointment status"
-                value={createForm.status}
-                onChange={(val) => setCreateForm((f) => ({ ...f, status: val }))}
-                options={STATUS_FIELD_OPTIONS}
-                disabled={creating}
-              />
-            </div>
-          </div>
+          ) : null}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-apt-contact" className="block font-medium text-body mb-1">
-                {contactLabel} (required)
-              </label>
-              <Select
-                id="new-apt-contact"
-                ariaLabel={contactLabel}
-                value={createForm.contact_id}
-                onChange={(val) => setCreateForm((f) => ({ ...f, contact_id: val }))}
-                options={contactOptions}
-                disabled={creating}
-              />
+          {!hideScheduledAt || !hideStatus ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!hideScheduledAt ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-apt-time" label={`Time (${userTimezone})`} readOnly={isFieldReadOnly(fr, 'scheduled_at')} />
+                  <input
+                    id="new-apt-time"
+                    type="datetime-local"
+                    required={!isFieldReadOnly(fr, 'scheduled_at')}
+                    value={createForm.scheduled_at}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({ ...f, scheduled_at: e.target.value }))
+                    }
+                    disabled={creating || isFieldReadOnly(fr, 'scheduled_at')}
+                    className="crm-input w-full px-3 py-2 num-tabular"
+                  />
+                </div>
+              ) : null}
+              {!hideStatus ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-apt-status" label="Status" readOnly={isFieldReadOnly(fr, 'status')} />
+                  <Select
+                    id="new-apt-status"
+                    ariaLabel="Appointment status"
+                    value={createForm.status}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, status: val }))}
+                    options={STATUS_FIELD_OPTIONS}
+                    disabled={creating || isFieldReadOnly(fr, 'status')}
+                  />
+                </div>
+              ) : null}
             </div>
-            <div>
-              <label htmlFor="new-apt-assignee" className="block font-medium text-body mb-1">
-                Assignee
-              </label>
-              <Select
-                id="new-apt-assignee"
-                ariaLabel="Assignee"
-                value={createForm.assignee_id}
-                onChange={(val) => setCreateForm((f) => ({ ...f, assignee_id: val }))}
-                options={assigneeFieldOptions}
-                disabled={creating}
-              />
-            </div>
-          </div>
+          ) : null}
 
-          <div>
-            <label htmlFor="new-apt-notes" className="block font-medium text-body mb-1">
-              Notes
-            </label>
-            <textarea
-              id="new-apt-notes"
-              rows={2}
-              value={createForm.notes}
-              onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
+          {!hideContact || !hideAssignee ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!hideContact ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-apt-contact" label={`${contactLabel} (required)`} readOnly={isFieldReadOnly(fr, 'contact')} />
+                  <Select
+                    id="new-apt-contact"
+                    ariaLabel={contactLabel}
+                    value={createForm.contact_id}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, contact_id: val }))}
+                    options={contactOptions}
+                    disabled={creating || isFieldReadOnly(fr, 'contact')}
+                  />
+                </div>
+              ) : null}
+              {!hideAssignee ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-apt-assignee" label="Assignee" readOnly={isFieldReadOnly(fr, 'assignee')} />
+                  <Select
+                    id="new-apt-assignee"
+                    ariaLabel="Assignee"
+                    value={createForm.assignee_id}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, assignee_id: val }))}
+                    options={assigneeFieldOptions}
+                    disabled={creating || isFieldReadOnly(fr, 'assignee')}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!hideNotes ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-apt-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+              <textarea
+                id="new-apt-notes"
+                rows={2}
+                value={createForm.notes}
+                onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
+                disabled={creating || isFieldReadOnly(fr, 'notes')}
+                className="crm-input w-full px-3 py-2"
+              />
+            </div>
+          ) : null}
+
+          <RecordSharingControl
+            idPrefix="new-apt-sharing"
+            visibility={createForm.visibility}
+            sharedRoleId={createForm.shared_role_id}
+            roles={pane.optionsData?.roles || []}
+            disabled={creating}
+            onChange={(next) => setCreateForm((f) => ({ ...f, ...next }))}
+          />
         </form>
       </Modal>
 
@@ -434,6 +543,7 @@ export function AppointmentsPane({
         contactLabel={contactLabel}
         contactPluralLabel={contactPlural}
         assignees={pane.optionsData?.assignees || []}
+        roles={pane.optionsData?.roles || []}
         workspaceSlug={workspace?.slug}
         userTimezone={userTimezone}
         permissions={permissions}
@@ -445,117 +555,126 @@ export function AppointmentsPane({
         notice={pane.actionNotice}
         canUpdate={pane.rights.canUpdate}
         canDelete={pane.rights.canDelete}
+        sharingValue={{
+          visibility: formValues.visibility,
+          shared_role_id: formValues.shared_role_id,
+        }}
+        onSharingChange={(next) => setDraft({ ...formValues, ...next })}
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
-        badgeText={active?.status || ''}
+        badgeText={!hideStatus ? active?.status || '' : ''}
         badgeClassName={STATUS_BADGES[active?.status] || 'badge badge-neutral'}
       >
-        <div>
-          <label htmlFor="apt-insp-title" className="block font-medium text-body mb-1">
-            Appointment title
-          </label>
-          <input
-            id="apt-insp-title"
-            type="text"
-            value={formValues.title}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => {
-              setValidationError('')
-              setDraft({ ...formValues, title: e.target.value })
-            }}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="apt-insp-time" className="block font-medium text-body mb-1">
-              Time ({userTimezone})
-            </label>
+        {!hideTitle ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="apt-insp-title" label="Appointment title" readOnly={isFieldReadOnly(fr, 'title')} />
             <input
-              id="apt-insp-time"
-              type="datetime-local"
-              value={formValues.scheduled_at}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              id="apt-insp-title"
+              type="text"
+              value={formValues.title}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'title')}
               onChange={(e) => {
                 setValidationError('')
-                setDraft({ ...formValues, scheduled_at: e.target.value })
+                setDraft({ ...formValues, title: e.target.value })
               }}
-              className="crm-input w-full px-3 py-2 num-tabular"
+              className="crm-input w-full px-3 py-2"
             />
           </div>
-          <div>
-            <label htmlFor="apt-insp-status" className="block font-medium text-body mb-1">
-              Status
-            </label>
-            <Select
-              id="apt-insp-status"
-              ariaLabel="Status"
-              value={formValues.status}
-              onChange={(val) => {
-                setValidationError('')
-                setDraft({ ...formValues, status: val })
-              }}
-              options={STATUS_FIELD_OPTIONS}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
-          </div>
-        </div>
+        ) : null}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="apt-insp-contact" className="block font-medium text-body mb-1">
-              {contactLabel} (required)
-            </label>
-            <Select
-              id="apt-insp-contact"
-              ariaLabel={contactLabel}
-              value={formValues.contact_id}
-              onChange={(val) => {
-                setValidationError('')
-                setDraft({ ...formValues, contact_id: val })
-              }}
-              options={contactOptions}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
+        {!hideScheduledAt || !hideStatus ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideScheduledAt ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="apt-insp-time" label={`Time (${userTimezone})`} readOnly={isFieldReadOnly(fr, 'scheduled_at')} />
+                <input
+                  id="apt-insp-time"
+                  type="datetime-local"
+                  value={formValues.scheduled_at}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'scheduled_at')}
+                  onChange={(e) => {
+                    setValidationError('')
+                    setDraft({ ...formValues, scheduled_at: e.target.value })
+                  }}
+                  className="crm-input w-full px-3 py-2 num-tabular"
+                />
+              </div>
+            ) : null}
+            {!hideStatus ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="apt-insp-status" label="Status" readOnly={isFieldReadOnly(fr, 'status')} />
+                <Select
+                  id="apt-insp-status"
+                  ariaLabel="Status"
+                  value={formValues.status}
+                  onChange={(val) => {
+                    setValidationError('')
+                    setDraft({ ...formValues, status: val })
+                  }}
+                  options={STATUS_FIELD_OPTIONS}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'status')}
+                />
+              </div>
+            ) : null}
           </div>
-          <div>
-            <label htmlFor="apt-insp-assignee" className="block font-medium text-body mb-1">
-              Assignee
-            </label>
-            <Select
-              id="apt-insp-assignee"
-              ariaLabel="Assignee"
-              value={formValues.assignee_id}
-              onChange={(val) => {
-                setValidationError('')
-                setDraft({ ...formValues, assignee_id: val })
-              }}
-              options={assigneeFieldOptions}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
-          </div>
-        </div>
+        ) : null}
 
-        <div>
-          <label htmlFor="apt-insp-notes" className="block font-medium text-body mb-1">
-            Notes
-          </label>
-          <textarea
-            id="apt-insp-notes"
-            rows={3}
-            value={formValues.notes}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => {
-              setValidationError('')
-              setDraft({ ...formValues, notes: e.target.value })
-            }}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
+        {!hideContact || !hideAssignee ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideContact ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="apt-insp-contact" label={`${contactLabel} (required)`} readOnly={isFieldReadOnly(fr, 'contact')} />
+                <Select
+                  id="apt-insp-contact"
+                  ariaLabel={contactLabel}
+                  value={formValues.contact_id}
+                  onChange={(val) => {
+                    setValidationError('')
+                    setDraft({ ...formValues, contact_id: val })
+                  }}
+                  options={contactOptions}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'contact')}
+                />
+              </div>
+            ) : null}
+            {!hideAssignee ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="apt-insp-assignee" label="Assignee" readOnly={isFieldReadOnly(fr, 'assignee')} />
+                <Select
+                  id="apt-insp-assignee"
+                  ariaLabel="Assignee"
+                  value={formValues.assignee_id}
+                  onChange={(val) => {
+                    setValidationError('')
+                    setDraft({ ...formValues, assignee_id: val })
+                  }}
+                  options={assigneeFieldOptions}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'assignee')}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!hideNotes ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="apt-insp-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+            <textarea
+              id="apt-insp-notes"
+              rows={3}
+              value={formValues.notes}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'notes')}
+              onChange={(e) => {
+                setValidationError('')
+                setDraft({ ...formValues, notes: e.target.value })
+              }}
+              className="crm-input w-full px-3 py-2"
+            />
+          </div>
+        ) : null}
       </RecordInspectorDrawer>
     </>
   )

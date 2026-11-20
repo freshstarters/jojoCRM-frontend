@@ -4,9 +4,20 @@ import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
+import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import {
+  RecordSharingControl,
+  SharingBadge,
+} from '../components/crm/RecordSharingControl.jsx'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
 import {
+  filterWritablePayload,
+  isFieldHidden,
+  isFieldReadOnly,
+} from '../service/crmService.js'
+import {
+  VISIBILITY_FILTER_OPTIONS,
   buildAccountSelectOptions,
   buildAssigneeSelectOptions,
   buildContactSelectOptions,
@@ -42,12 +53,21 @@ const EMPTY_FORM = {
   account_id: '',
   contact_id: '',
   notes: '',
+  visibility: 'workspace',
+  shared_role_id: '',
+}
+
+const JOB_FIELD_MAP = {
+  assignee_id: 'assignee',
+  account_id: 'account',
+  contact_id: 'contact',
 }
 
 export function JobsPane({
   workspace,
   user,
   permissions,
+  permissionsRevision = 0,
   initialInspectRequest = null,
   onInspectRequestConsumed,
   onOpenLinkedRecord,
@@ -62,12 +82,22 @@ export function JobsPane({
     workspaceSlug: workspace?.slug,
     objectKey: 'job',
     permissions,
+    permissionsRevision,
     initialInspectRequest,
     onInspectRequestConsumed,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
   })
+
+  const fr = pane.fieldRights
+  const hideTitle = isFieldHidden(fr, 'title')
+  const hideStatus = isFieldHidden(fr, 'status')
+  const hideAssignee = isFieldHidden(fr, 'assignee')
+  const hideDueDate = isFieldHidden(fr, 'due_date')
+  const hideAccount = isFieldHidden(fr, 'account')
+  const hideContact = isFieldHidden(fr, 'contact')
+  const hideNotes = isFieldHidden(fr, 'notes')
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState(EMPTY_FORM)
@@ -115,6 +145,8 @@ export function JobsPane({
     account_id: active?.account_id ? String(active.account_id) : '',
     contact_id: active?.contact_id ? String(active.contact_id) : '',
     notes: active?.notes || '',
+    visibility: active?.visibility || 'workspace',
+    shared_role_id: active?.shared_role_id ? String(active.shared_role_id) : '',
   }
 
   const inspectorContactOptions = useMemo(
@@ -127,6 +159,17 @@ export function JobsPane({
     [allContacts, formValues.account_id, contactLabel],
   )
 
+  const columns = useMemo(() => {
+    const cols = [{ key: 'title', label: 'Title' }]
+    if (!hideStatus) cols.push({ key: 'status', label: 'Status' })
+    if (!hideAssignee) cols.push({ key: 'assignee', label: 'Assignee' })
+    if (!hideDueDate) cols.push({ key: 'due_date', label: 'Due date' })
+    if (!hideAccount || !hideContact) cols.push({ key: 'linked', label: 'Linked To' })
+    cols.push({ key: 'sharing', label: 'Sharing' })
+    cols.push({ key: 'action', label: 'Action', align: 'right' })
+    return cols
+  }, [hideStatus, hideAssignee, hideDueDate, hideAccount, hideContact])
+
   function openCreateModal() {
     setCreateForm(EMPTY_FORM)
     setCreateError('')
@@ -135,24 +178,43 @@ export function JobsPane({
 
   async function handleCreateSubmit(event) {
     event.preventDefault()
-    if (!createForm.title.trim()) {
+    if (!hideTitle && !isFieldReadOnly(fr, 'title') && !createForm.title.trim()) {
       setCreateError('Job title is required.')
       return
     }
-    if (!createForm.account_id && !createForm.contact_id) {
+    if (
+      (!hideAccount && !hideContact) &&
+      !createForm.account_id &&
+      !createForm.contact_id
+    ) {
       setCreateError(`Link at least an Account or a ${contactLabel}.`)
+      return
+    }
+    if (createForm.visibility === 'role' && !createForm.shared_role_id) {
+      setCreateError('Select a role to share this job with.')
       return
     }
     setCreateError('')
     setCreating(true)
+    const fieldPayload = filterWritablePayload(
+      {
+        title: createForm.title.trim(),
+        status: createForm.status,
+        assignee_id: createForm.assignee_id ? Number(createForm.assignee_id) : null,
+        due_date: createForm.due_date || null,
+        account_id: createForm.account_id ? Number(createForm.account_id) : null,
+        contact_id: createForm.contact_id ? Number(createForm.contact_id) : null,
+        notes: createForm.notes,
+      },
+      fr,
+      JOB_FIELD_MAP,
+    )
     const res = await pane.createRecord({
-      title: createForm.title.trim(),
-      status: createForm.status,
-      assignee_id: createForm.assignee_id ? Number(createForm.assignee_id) : null,
-      due_date: createForm.due_date || null,
-      account_id: createForm.account_id ? Number(createForm.account_id) : null,
-      contact_id: createForm.contact_id ? Number(createForm.contact_id) : null,
-      notes: createForm.notes,
+      ...fieldPayload,
+      visibility: createForm.visibility,
+      ...(createForm.visibility === 'role'
+        ? { shared_role_id: Number(createForm.shared_role_id) }
+        : {}),
     })
     setCreating(false)
     if (!res.ok) {
@@ -163,23 +225,44 @@ export function JobsPane({
   }
 
   async function handleSaveInspector() {
-    if (!formValues.title.trim()) {
+    if (!hideTitle && !isFieldReadOnly(fr, 'title') && !formValues.title.trim()) {
       setValidationError('Job title is required.')
       return
     }
-    if (!formValues.account_id && !formValues.contact_id) {
+    if (
+      (!hideAccount && !hideContact) &&
+      !formValues.account_id &&
+      !formValues.contact_id
+    ) {
       setValidationError(`Link at least an Account or a ${contactLabel}.`)
       return
     }
     setValidationError('')
+    const fieldPayload = filterWritablePayload(
+      {
+        title: formValues.title.trim(),
+        status: formValues.status,
+        assignee_id: formValues.assignee_id ? Number(formValues.assignee_id) : null,
+        due_date: formValues.due_date || null,
+        account_id: formValues.account_id ? Number(formValues.account_id) : null,
+        contact_id: formValues.contact_id ? Number(formValues.contact_id) : null,
+        notes: formValues.notes,
+      },
+      fr,
+      JOB_FIELD_MAP,
+    )
+    const sharingPayload = active?.can_manage_sharing
+      ? {
+          visibility: formValues.visibility,
+          shared_role_id:
+            formValues.visibility === 'role' && formValues.shared_role_id
+              ? Number(formValues.shared_role_id)
+              : null,
+        }
+      : {}
     const ok = await pane.saveInspectorRecord({
-      title: formValues.title.trim(),
-      status: formValues.status,
-      assignee_id: formValues.assignee_id ? Number(formValues.assignee_id) : null,
-      due_date: formValues.due_date || null,
-      account_id: formValues.account_id ? Number(formValues.account_id) : null,
-      contact_id: formValues.contact_id ? Number(formValues.contact_id) : null,
-      notes: formValues.notes,
+      ...fieldPayload,
+      ...sharingPayload,
     })
     if (ok) {
       setDraft(null)
@@ -209,16 +292,20 @@ export function JobsPane({
             value: pane.totalCount,
             caption: 'Matching current filter',
           },
-          {
-            label: 'Open jobs',
-            value: pane.summary?.open_count ?? 0,
-            caption: 'Pending or in progress',
-          },
-          {
-            label: 'Completed',
-            value: pane.summary?.completed_count ?? 0,
-            caption: 'Finished deliverables',
-          },
+          ...(!hideStatus
+            ? [
+                {
+                  label: 'Open jobs',
+                  value: pane.summary?.open_count ?? 0,
+                  caption: 'Pending or in progress',
+                },
+                {
+                  label: 'Completed',
+                  value: pane.summary?.completed_count ?? 0,
+                  caption: 'Finished deliverables',
+                },
+              ]
+            : []),
         ]}
         toolbarCaption="Open a job to update status, assignee, due date, linked record, or log activities."
         searchValue={pane.search}
@@ -226,22 +313,35 @@ export function JobsPane({
         searchPlaceholder="Search jobs by title, account, or assignee..."
         filters={
           <>
+            {!hideStatus ? (
+              <div className="w-40">
+                <Select
+                  id="job-status-filter"
+                  ariaLabel="Filter jobs by status"
+                  value={pane.filters.status || ''}
+                  onChange={(val) => pane.updateFilter('status', val)}
+                  options={STATUS_FILTER_OPTIONS}
+                />
+              </div>
+            ) : null}
+            {!hideAssignee ? (
+              <div className="w-52">
+                <Select
+                  id="job-assignee-filter"
+                  ariaLabel="Filter jobs by assignee"
+                  value={pane.filters.assignee_id || ''}
+                  onChange={(val) => pane.updateFilter('assignee_id', val)}
+                  options={assigneeFilterOptions}
+                />
+              </div>
+            ) : null}
             <div className="w-40">
               <Select
-                id="job-status-filter"
-                ariaLabel="Filter jobs by status"
-                value={pane.filters.status || ''}
-                onChange={(val) => pane.updateFilter('status', val)}
-                options={STATUS_FILTER_OPTIONS}
-              />
-            </div>
-            <div className="w-52">
-              <Select
-                id="job-assignee-filter"
-                ariaLabel="Filter jobs by assignee"
-                value={pane.filters.assignee_id || ''}
-                onChange={(val) => pane.updateFilter('assignee_id', val)}
-                options={assigneeFilterOptions}
+                id="job-visibility-filter"
+                ariaLabel="Filter jobs by sharing"
+                value={pane.filters.visibility || ''}
+                onChange={(val) => pane.updateFilter('visibility', val)}
+                options={VISIBILITY_FILTER_OPTIONS}
               />
             </div>
           </>
@@ -250,14 +350,7 @@ export function JobsPane({
         error={pane.loadError}
         records={pane.records}
         emptyMessage="No jobs yet."
-        columns={[
-          { key: 'title', label: 'Title' },
-          { key: 'status', label: 'Status' },
-          { key: 'assignee', label: 'Assignee' },
-          { key: 'due_date', label: 'Due date' },
-          { key: 'linked', label: 'Linked To' },
-          { key: 'action', label: 'Action', align: 'right' },
-        ]}
+        columns={columns}
         renderRow={(job) => {
           const linkParts = [job.account?.name, job.contact?.name].filter(Boolean)
           return (
@@ -266,20 +359,33 @@ export function JobsPane({
               className="crm-hover cursor-pointer"
               onClick={() => handleInspect(job.id)}
             >
-              <td className="py-3 px-4 font-medium text-main">{job.title}</td>
+              <td className="py-3 px-4 font-medium text-main">
+                {job.title ?? job.display_label}
+              </td>
+              {!hideStatus ? (
+                <td className="py-3 px-4">
+                  <span className={STATUS_BADGES[job.status] || 'badge badge-neutral'}>
+                    {job.status}
+                  </span>
+                </td>
+              ) : null}
+              {!hideAssignee ? (
+                <td className="py-3 px-4 text-sub break-all">
+                  {job.assignee?.email || 'Unassigned'}
+                </td>
+              ) : null}
+              {!hideDueDate ? (
+                <td className="py-3 px-4 text-sub num-tabular">
+                  {formatDateOnly(job.due_date)}
+                </td>
+              ) : null}
+              {!hideAccount || !hideContact ? (
+                <td className="py-3 px-4 text-sub">
+                  {linkParts.length > 0 ? linkParts.join(' · ') : 'Unlinked'}
+                </td>
+              ) : null}
               <td className="py-3 px-4">
-                <span className={STATUS_BADGES[job.status] || 'badge badge-neutral'}>
-                  {job.status}
-                </span>
-              </td>
-              <td className="py-3 px-4 text-sub break-all">
-                {job.assignee?.email || 'Unassigned'}
-              </td>
-              <td className="py-3 px-4 text-sub num-tabular">
-                {formatDateOnly(job.due_date)}
-              </td>
-              <td className="py-3 px-4 text-sub">
-                {linkParts.length > 0 ? linkParts.join(' · ') : 'Unlinked'}
+                <SharingBadge record={job} />
               </td>
               <td
                 className="py-3 px-4 text-right"
@@ -339,115 +445,130 @@ export function JobsPane({
       >
         <form id="create-job-form" onSubmit={handleCreateSubmit} className="space-y-3 text-xs">
           <FeedbackNotice tone="danger" message={createError} />
-          <div>
-            <label htmlFor="new-job-title" className="block font-medium text-body mb-1">
-              Job title
-            </label>
-            <input
-              id="new-job-title"
-              type="text"
-              required
-              value={createForm.title}
-              onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. Monthly chiller preventative check"
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-job-status" className="block font-medium text-body mb-1">
-                Status
-              </label>
-              <Select
-                id="new-job-status"
-                ariaLabel="Job status"
-                value={createForm.status}
-                onChange={(val) => setCreateForm((f) => ({ ...f, status: val }))}
-                options={STATUS_FIELD_OPTIONS}
-                disabled={creating}
-              />
-            </div>
-            <div>
-              <label htmlFor="new-job-due" className="block font-medium text-body mb-1">
-                Due date
-              </label>
+          {!hideTitle ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-job-title" label="Job title" readOnly={isFieldReadOnly(fr, 'title')} />
               <input
-                id="new-job-due"
-                type="date"
-                value={createForm.due_date}
-                onChange={(e) => setCreateForm((f) => ({ ...f, due_date: e.target.value }))}
-                disabled={creating}
-                className="crm-input w-full px-3 py-2 num-tabular"
+                id="new-job-title"
+                type="text"
+                required={!isFieldReadOnly(fr, 'title')}
+                value={createForm.title}
+                onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. Monthly chiller preventative check"
+                disabled={creating || isFieldReadOnly(fr, 'title')}
+                className="crm-input w-full px-3 py-2"
               />
             </div>
-          </div>
+          ) : null}
 
-          <div>
-            <label htmlFor="new-job-assignee" className="block font-medium text-body mb-1">
-              Assignee
-            </label>
-            <Select
-              id="new-job-assignee"
-              ariaLabel="Assignee"
-              value={createForm.assignee_id}
-              onChange={(val) => setCreateForm((f) => ({ ...f, assignee_id: val }))}
-              options={assigneeFieldOptions}
-              disabled={creating}
-            />
-          </div>
+          {!hideStatus || !hideDueDate ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!hideStatus ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-job-status" label="Status" readOnly={isFieldReadOnly(fr, 'status')} />
+                  <Select
+                    id="new-job-status"
+                    ariaLabel="Job status"
+                    value={createForm.status}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, status: val }))}
+                    options={STATUS_FIELD_OPTIONS}
+                    disabled={creating || isFieldReadOnly(fr, 'status')}
+                  />
+                </div>
+              ) : null}
+              {!hideDueDate ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-job-due" label="Due date" readOnly={isFieldReadOnly(fr, 'due_date')} />
+                  <input
+                    id="new-job-due"
+                    type="date"
+                    value={createForm.due_date}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, due_date: e.target.value }))}
+                    disabled={creating || isFieldReadOnly(fr, 'due_date')}
+                    className="crm-input w-full px-3 py-2 num-tabular"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-job-account" className="block font-medium text-body mb-1">
-                Account
-              </label>
+          {!hideAssignee ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-job-assignee" label="Assignee" readOnly={isFieldReadOnly(fr, 'assignee')} />
               <Select
-                id="new-job-account"
-                ariaLabel="Account"
-                value={createForm.account_id}
-                onChange={(val) =>
-                  setCreateForm((f) => syncAccountAndContactPatch(f, val, allContacts))
-                }
-                options={accountOptions}
-                disabled={creating}
+                id="new-job-assignee"
+                ariaLabel="Assignee"
+                value={createForm.assignee_id}
+                onChange={(val) => setCreateForm((f) => ({ ...f, assignee_id: val }))}
+                options={assigneeFieldOptions}
+                disabled={creating || isFieldReadOnly(fr, 'assignee')}
               />
             </div>
-            <div>
-              <label htmlFor="new-job-contact" className="block font-medium text-body mb-1">
-                {contactLabel}
-              </label>
-              <Select
-                id="new-job-contact"
-                ariaLabel={contactLabel}
-                value={createForm.contact_id}
-                onChange={(val) =>
-                  setCreateForm((f) => syncContactAndAccountPatch(f, val, allContacts))
-                }
-                options={createContactOptions}
-                disabled={creating}
+          ) : null}
+
+          {!hideAccount || !hideContact ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {!hideAccount ? (
+                  <div className="space-y-1">
+                    <FieldLabel htmlFor="new-job-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
+                    <Select
+                      id="new-job-account"
+                      ariaLabel="Account"
+                      value={createForm.account_id}
+                      onChange={(val) =>
+                        setCreateForm((f) => syncAccountAndContactPatch(f, val, allContacts))
+                      }
+                      options={accountOptions}
+                      disabled={creating || isFieldReadOnly(fr, 'account')}
+                    />
+                  </div>
+                ) : null}
+                {!hideContact ? (
+                  <div className="space-y-1">
+                    <FieldLabel htmlFor="new-job-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
+                    <Select
+                      id="new-job-contact"
+                      ariaLabel={contactLabel}
+                      value={createForm.contact_id}
+                      onChange={(val) =>
+                        setCreateForm((f) => syncContactAndAccountPatch(f, val, allContacts))
+                      }
+                      options={createContactOptions}
+                      disabled={creating || isFieldReadOnly(fr, 'contact')}
+                    />
+                  </div>
+                ) : null}
+              </div>
+
+              <p className="text-[11px] text-sub">
+                Select at least an Account or a {contactLabel}. Choosing a {contactLabel} with an Account fills in the Account automatically.
+              </p>
+            </>
+          ) : null}
+
+          {!hideNotes ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-job-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+              <textarea
+                id="new-job-notes"
+                rows={2}
+                value={createForm.notes}
+                onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
+                disabled={creating || isFieldReadOnly(fr, 'notes')}
+                className="crm-input w-full px-3 py-2"
               />
             </div>
-          </div>
+          ) : null}
 
-          <p className="text-[11px] text-sub">
-            Select at least an Account or a {contactLabel}. Choosing a {contactLabel} with an Account fills in the Account automatically.
-          </p>
-
-          <div>
-            <label htmlFor="new-job-notes" className="block font-medium text-body mb-1">
-              Notes
-            </label>
-            <textarea
-              id="new-job-notes"
-              rows={2}
-              value={createForm.notes}
-              onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
+          <RecordSharingControl
+            idPrefix="new-job-sharing"
+            visibility={createForm.visibility}
+            sharedRoleId={createForm.shared_role_id}
+            roles={pane.optionsData?.roles || []}
+            disabled={creating}
+            onChange={(next) => setCreateForm((f) => ({ ...f, ...next }))}
+          />
         </form>
       </Modal>
 
@@ -463,6 +584,7 @@ export function JobsPane({
         contactLabel={contactLabel}
         contactPluralLabel={contactPlural}
         assignees={pane.optionsData?.assignees || []}
+        roles={pane.optionsData?.roles || []}
         workspaceSlug={workspace?.slug}
         userTimezone={user?.timezone || 'Africa/Accra'}
         permissions={permissions}
@@ -474,134 +596,143 @@ export function JobsPane({
         notice={pane.actionNotice}
         canUpdate={pane.rights.canUpdate}
         canDelete={pane.rights.canDelete}
+        sharingValue={{
+          visibility: formValues.visibility,
+          shared_role_id: formValues.shared_role_id,
+        }}
+        onSharingChange={(next) => setDraft({ ...formValues, ...next })}
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
-        badgeText={active?.status || ''}
+        badgeText={!hideStatus ? active?.status || '' : ''}
         badgeClassName={STATUS_BADGES[active?.status] || 'badge badge-neutral'}
       >
-        <div>
-          <label htmlFor="job-insp-title" className="block font-medium text-body mb-1">
-            Job title
-          </label>
-          <input
-            id="job-insp-title"
-            type="text"
-            value={formValues.title}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => {
-              setValidationError('')
-              setDraft({ ...formValues, title: e.target.value })
-            }}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="job-insp-status" className="block font-medium text-body mb-1">
-              Status
-            </label>
-            <Select
-              id="job-insp-status"
-              ariaLabel="Status"
-              value={formValues.status}
-              onChange={(val) => {
-                setValidationError('')
-                setDraft({ ...formValues, status: val })
-              }}
-              options={STATUS_FIELD_OPTIONS}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
-          </div>
-          <div>
-            <label htmlFor="job-insp-due" className="block font-medium text-body mb-1">
-              Due date
-            </label>
+        {!hideTitle ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="job-insp-title" label="Job title" readOnly={isFieldReadOnly(fr, 'title')} />
             <input
-              id="job-insp-due"
-              type="date"
-              value={formValues.due_date}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              id="job-insp-title"
+              type="text"
+              value={formValues.title}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'title')}
               onChange={(e) => {
                 setValidationError('')
-                setDraft({ ...formValues, due_date: e.target.value })
+                setDraft({ ...formValues, title: e.target.value })
               }}
-              className="crm-input w-full px-3 py-2 num-tabular"
+              className="crm-input w-full px-3 py-2"
             />
           </div>
-        </div>
+        ) : null}
 
-        <div>
-          <label htmlFor="job-insp-assignee" className="block font-medium text-body mb-1">
-            Assignee
-          </label>
-          <Select
-            id="job-insp-assignee"
-            ariaLabel="Assignee"
-            value={formValues.assignee_id}
-            onChange={(val) => {
-              setValidationError('')
-              setDraft({ ...formValues, assignee_id: val })
-            }}
-            options={assigneeFieldOptions}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-          />
-        </div>
+        {!hideStatus || !hideDueDate ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideStatus ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="job-insp-status" label="Status" readOnly={isFieldReadOnly(fr, 'status')} />
+                <Select
+                  id="job-insp-status"
+                  ariaLabel="Status"
+                  value={formValues.status}
+                  onChange={(val) => {
+                    setValidationError('')
+                    setDraft({ ...formValues, status: val })
+                  }}
+                  options={STATUS_FIELD_OPTIONS}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'status')}
+                />
+              </div>
+            ) : null}
+            {!hideDueDate ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="job-insp-due" label="Due date" readOnly={isFieldReadOnly(fr, 'due_date')} />
+                <input
+                  id="job-insp-due"
+                  type="date"
+                  value={formValues.due_date}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'due_date')}
+                  onChange={(e) => {
+                    setValidationError('')
+                    setDraft({ ...formValues, due_date: e.target.value })
+                  }}
+                  className="crm-input w-full px-3 py-2 num-tabular"
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="job-insp-account" className="block font-medium text-body mb-1">
-              Account
-            </label>
+        {!hideAssignee ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="job-insp-assignee" label="Assignee" readOnly={isFieldReadOnly(fr, 'assignee')} />
             <Select
-              id="job-insp-account"
-              ariaLabel="Account"
-              value={formValues.account_id}
+              id="job-insp-assignee"
+              ariaLabel="Assignee"
+              value={formValues.assignee_id}
               onChange={(val) => {
                 setValidationError('')
-                setDraft(syncAccountAndContactPatch(formValues, val, allContacts))
+                setDraft({ ...formValues, assignee_id: val })
               }}
-              options={accountOptions}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              options={assigneeFieldOptions}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'assignee')}
             />
           </div>
-          <div>
-            <label htmlFor="job-insp-contact" className="block font-medium text-body mb-1">
-              {contactLabel}
-            </label>
-            <Select
-              id="job-insp-contact"
-              ariaLabel={contactLabel}
-              value={formValues.contact_id}
-              onChange={(val) => {
-                setValidationError('')
-                setDraft(syncContactAndAccountPatch(formValues, val, allContacts))
-              }}
-              options={inspectorContactOptions}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
-          </div>
-        </div>
+        ) : null}
 
-        <div>
-          <label htmlFor="job-insp-notes" className="block font-medium text-body mb-1">
-            Notes
-          </label>
-          <textarea
-            id="job-insp-notes"
-            rows={3}
-            value={formValues.notes}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => {
-              setValidationError('')
-              setDraft({ ...formValues, notes: e.target.value })
-            }}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
+        {!hideAccount || !hideContact ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideAccount ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="job-insp-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
+                <Select
+                  id="job-insp-account"
+                  ariaLabel="Account"
+                  value={formValues.account_id}
+                  onChange={(val) => {
+                    setValidationError('')
+                    setDraft(syncAccountAndContactPatch(formValues, val, allContacts))
+                  }}
+                  options={accountOptions}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'account')}
+                />
+              </div>
+            ) : null}
+            {!hideContact ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="job-insp-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
+                <Select
+                  id="job-insp-contact"
+                  ariaLabel={contactLabel}
+                  value={formValues.contact_id}
+                  onChange={(val) => {
+                    setValidationError('')
+                    setDraft(syncContactAndAccountPatch(formValues, val, allContacts))
+                  }}
+                  options={inspectorContactOptions}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'contact')}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!hideNotes ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="job-insp-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+            <textarea
+              id="job-insp-notes"
+              rows={3}
+              value={formValues.notes}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'notes')}
+              onChange={(e) => {
+                setValidationError('')
+                setDraft({ ...formValues, notes: e.target.value })
+              }}
+              className="crm-input w-full px-3 py-2"
+            />
+          </div>
+        ) : null}
       </RecordInspectorDrawer>
     </>
   )

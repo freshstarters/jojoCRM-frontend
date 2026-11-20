@@ -1,6 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
-import { Card } from '../components/Card.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
@@ -8,72 +7,166 @@ import { Subtabs } from '../components/Subtabs.jsx'
 import { ConversionResultBanner } from '../components/crm/ConversionResultBanner.jsx'
 import { ConvertLeadModal } from '../components/crm/ConvertLeadModal.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
+import { DealKanbanBoard } from '../components/crm/DealKanbanBoard.jsx'
+import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { PipelineStageDistribution } from '../components/crm/PipelineStageDistribution.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import {
+  RecordSharingControl,
+  SharingBadge,
+} from '../components/crm/RecordSharingControl.jsx'
+import { VISIBILITY_FILTER_OPTIONS } from '../utils/crmFormOptions.js'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
-import { canUserConvertLead } from '../service/crmService.js'
+import {
+  canUserConvertLead,
+  canUserManageSalesSettings,
+  fetchDealsBoard,
+  filterWritablePayload,
+  getStageBadgeClass,
+  isFieldHidden,
+  isFieldReadOnly,
+  updateCrmRecord,
+} from '../service/crmService.js'
 import { DEALS_SUBTABS } from '../utils/catalog.js'
 import { formatDateOnly, formatGhs } from '../utils/formatters.js'
 
-const STARTER_STAGES = ['New', 'Qualified', 'Proposal', 'Won', 'Lost']
-
-const STAGE_BADGES = {
-  New: 'badge badge-info',
-  Qualified: 'badge badge-info',
-  Proposal: 'badge badge-warn',
-  Won: 'badge badge-success',
-  Lost: 'badge badge-danger',
-}
-
-const STAGE_FILTER_OPTIONS = [
-  { value: '', label: 'All stages' },
-  ...STARTER_STAGES.map((stage) => ({ value: stage, label: stage })),
+const FALLBACK_STAGES = [
+  { id: null, name: 'New', tone: 'neutral' },
+  { id: null, name: 'Qualified', tone: 'info' },
+  { id: null, name: 'Proposal', tone: 'warn' },
+  { id: null, name: 'Won', tone: 'success' },
+  { id: null, name: 'Lost', tone: 'danger' },
 ]
-
-const STAGE_FIELD_OPTIONS = STARTER_STAGES.map((stage) => ({
-  value: stage,
-  label: stage,
-}))
 
 const EMPTY_FORM = {
   title: '',
   account_id: '',
   contact_id: '',
   amount: '0.00',
-  stage: 'New',
+  stage: '',
   target_close_date: '',
   win_probability: '',
+  estimated_margin: '',
   notes: '',
+  visibility: 'workspace',
+  shared_role_id: '',
+}
+
+const DEAL_FIELD_MAP = {
+  account_id: 'account',
+  contact_id: 'contact',
+}
+
+function applyOptimisticBoardMove(currentBoard, deal, targetStageName) {
+  if (!currentBoard || !Array.isArray(currentBoard.stages)) return currentBoard
+  const oldStageName = deal.stage
+  if (oldStageName === targetStageName) return currentBoard
+  const dealAmount = Number(deal.amount || 0)
+  const targetCol = currentBoard.stages.find((col) => col.name === targetStageName)
+  if (!targetCol) return currentBoard
+
+  const nextStages = currentBoard.stages.map((col) => {
+    if (col.name === oldStageName) {
+      const nextDeals = (col.deals || []).filter((item) => item.id !== deal.id)
+      const nextCount = Math.max(0, Number(col.deal_count ?? 0) - 1)
+      const nextAmount =
+        col.total_amount !== null && col.total_amount !== undefined
+          ? Math.max(0, Number(col.total_amount ?? 0) - dealAmount).toFixed(2)
+          : null
+      return {
+        ...col,
+        deals: nextDeals,
+        deal_count: nextCount,
+        total_amount: nextAmount,
+      }
+    }
+    if (col.name === targetStageName) {
+      const updatedDeal = {
+        ...deal,
+        stage: targetStageName,
+        stage_tone: col.tone,
+        pipeline_stage_id: col.id,
+      }
+      const nextDeals = [updatedDeal, ...(col.deals || [])]
+      const nextCount = Number(col.deal_count ?? 0) + 1
+      const nextAmount =
+        col.total_amount !== null && col.total_amount !== undefined
+          ? (Number(col.total_amount ?? 0) + dealAmount).toFixed(2)
+          : null
+      return {
+        ...col,
+        deals: nextDeals,
+        deal_count: nextCount,
+        total_amount: nextAmount,
+      }
+    }
+    return col
+  })
+
+  const nextCounts = { ...(currentBoard.summary?.stage_counts || {}) }
+  const nextAmounts = { ...(currentBoard.summary?.stage_amounts || {}) }
+  for (const col of nextStages) {
+    nextCounts[col.name] = col.deal_count
+    if (col.total_amount !== null && col.total_amount !== undefined) {
+      nextAmounts[col.name] = col.total_amount
+    }
+  }
+
+  return {
+    ...currentBoard,
+    stages: nextStages,
+    summary: {
+      ...(currentBoard.summary || {}),
+      stage_counts: nextCounts,
+      stage_amounts: nextAmounts,
+    },
+  }
 }
 
 export function DealsPane({
   workspace,
   user,
   permissions,
-  activeSubtab = 'list',
+  permissionsRevision = 0,
+  activeSubtab = 'kanban',
   onSubtabChange,
+  onOpenPipelineSettings,
   initialInspectRequest = null,
   onInspectRequestConsumed,
   onOpenLinkedRecord,
   onAuditRecorded,
   onSessionExpired,
 }) {
+  const workspaceSlug = workspace?.slug
   const contactLabel = workspace?.contact_label || 'Contact'
   const contactPlural = workspace?.contact_plural_label || 'Contacts'
   const roleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
   const viewMode = activeSubtab === 'kanban' ? 'kanban' : 'list'
   const { conversionEnabled, canConvert } = canUserConvertLead(permissions, workspace)
+  const canManageSales = canUserManageSalesSettings(permissions)
 
   const pane = useCrmRecordsPane({
-    workspaceSlug: workspace?.slug,
+    workspaceSlug,
     objectKey: 'deal',
     permissions,
+    permissionsRevision,
+    enabled: viewMode === 'list',
     initialInspectRequest,
     onInspectRequestConsumed,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
   })
+
+  const [boardData, setBoardData] = useState(null)
+  const [completedBoardKey, setCompletedBoardKey] = useState('')
+  const [boardError, setBoardError] = useState('')
+  const [boardRefreshTick, setBoardRefreshTick] = useState(0)
+  const [debouncedBoardSearch, setDebouncedBoardSearch] = useState('')
+
+  const [movingDealId, setMovingDealId] = useState(null)
+  const [moveError, setMoveError] = useState('')
+  const [moveNotice, setMoveNotice] = useState('')
 
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState(EMPTY_FORM)
@@ -82,6 +175,120 @@ export function DealsPane({
   const [draft, setDraft] = useState(null)
   const [convertModalOpen, setConvertModalOpen] = useState(false)
   const [conversionResult, setConversionResult] = useState(null)
+
+  const fr = boardData?.permissions?.field_rights || pane.fieldRights
+  const hideTitle = isFieldHidden(fr, 'title')
+  const hideAccount = isFieldHidden(fr, 'account')
+  const hideContact = isFieldHidden(fr, 'contact')
+  const hideAmount = isFieldHidden(fr, 'amount')
+  const hideStage = isFieldHidden(fr, 'stage')
+  const hideCloseDate = isFieldHidden(fr, 'target_close_date')
+  const hideWinProb = isFieldHidden(fr, 'win_probability')
+  const hideMargin = isFieldHidden(fr, 'estimated_margin')
+  const hideNotes = isFieldHidden(fr, 'notes')
+
+  const reloadBoard = useCallback(() => {
+    setBoardRefreshTick((prev) => prev + 1)
+  }, [])
+
+  useEffect(() => {
+    const trimmed = pane.search.trim()
+    if (!trimmed) return undefined
+    const timer = setTimeout(() => {
+      setDebouncedBoardSearch(trimmed)
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [pane.search])
+
+  const effectiveBoardSearch = pane.search.trim() ? debouncedBoardSearch : ''
+  const boardVisibilityFilter = pane.filters.visibility || ''
+
+  const boardRequestKey =
+    workspaceSlug && pane.rights.canRead && viewMode === 'kanban'
+      ? `${workspaceSlug}:${effectiveBoardSearch}:${boardVisibilityFilter}:${boardRefreshTick}:${permissionsRevision}`
+      : ''
+  const boardLoading = Boolean(
+    boardRequestKey && completedBoardKey !== boardRequestKey,
+  )
+
+  useEffect(() => {
+    if (!boardRequestKey) return undefined
+    let cancelled = false
+    const activeKey = boardRequestKey
+
+    const params = {}
+    if (effectiveBoardSearch) params.q = effectiveBoardSearch
+    if (boardVisibilityFilter) params.visibility = boardVisibilityFilter
+
+    fetchDealsBoard(workspaceSlug, params)
+      .then(({ response, data }) => {
+        if (cancelled) return
+        if (!response.ok) {
+          if (response.status === 401) {
+            onSessionExpired?.(data?.error || data?.detail)
+            return
+          }
+          setBoardError(data?.error || data?.detail || 'Could not load pipeline board.')
+          return
+        }
+        setBoardError('')
+        setBoardData(data)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBoardError('Network error while loading pipeline board.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCompletedBoardKey(activeKey)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [boardRequestKey, workspaceSlug, effectiveBoardSearch, boardVisibilityFilter, onSessionExpired])
+
+  const activeStages = useMemo(() => {
+    if (viewMode === 'kanban' && Array.isArray(boardData?.stages) && boardData.stages.length > 0) {
+      return boardData.stages
+    }
+    if (Array.isArray(pane.summary?.stages) && pane.summary.stages.length > 0) {
+      return pane.summary.stages
+    }
+    const optStages = pane.optionsData?.constants?.deal_pipeline_stages
+    if (Array.isArray(optStages) && optStages.length > 0) {
+      return optStages
+    }
+    if (Array.isArray(boardData?.stages) && boardData.stages.length > 0) {
+      return boardData.stages
+    }
+    return FALLBACK_STAGES
+  }, [viewMode, boardData?.stages, pane.summary?.stages, pane.optionsData?.constants?.deal_pipeline_stages])
+
+  const stageToneByName = useMemo(() => {
+    const map = {}
+    for (const stage of activeStages) {
+      map[stage.name] = stage.tone
+    }
+    return map
+  }, [activeStages])
+
+  const stageFilterOptions = useMemo(
+    () => [
+      { value: '', label: 'All stages' },
+      ...activeStages.map((stage) => ({ value: stage.name, label: stage.name })),
+    ],
+    [activeStages],
+  )
+
+  const stageFieldOptions = useMemo(
+    () => activeStages.map((stage) => ({ value: stage.name, label: stage.name })),
+    [activeStages],
+  )
+
+  const defaultStageName = activeStages[0]?.name || 'New'
 
   const accountOptions = useMemo(
     () => [
@@ -144,38 +351,71 @@ export function DealsPane({
     account_id: active?.account_id ? String(active.account_id) : '',
     contact_id: active?.contact_id ? String(active.contact_id) : '',
     amount: active?.amount ?? '0.00',
-    stage: active?.stage || 'New',
+    stage: active?.stage || defaultStageName,
     target_close_date: active?.target_close_date || '',
     win_probability:
       active?.win_probability !== null && active?.win_probability !== undefined
         ? String(active.win_probability)
         : '',
+    estimated_margin: active?.estimated_margin ?? '',
     notes: active?.notes || '',
+    visibility: active?.visibility || 'workspace',
+    shared_role_id: active?.shared_role_id ? String(active.shared_role_id) : '',
   }
 
+  const columns = useMemo(() => {
+    const cols = [{ key: 'title', label: 'Deal Name' }]
+    if (!hideAccount || !hideContact) {
+      cols.push({ key: 'account', label: `Account & ${contactLabel}` })
+    }
+    if (!hideStage) cols.push({ key: 'stage', label: 'Stage' })
+    if (!hideAmount) cols.push({ key: 'amount', label: 'Value (GHS)' })
+    if (!hideMargin) cols.push({ key: 'estimated_margin', label: 'Est. Margin' })
+    if (!hideCloseDate) cols.push({ key: 'close', label: 'Target Close' })
+    cols.push({ key: 'sharing', label: 'Sharing' })
+    cols.push({ key: 'action', label: 'Action', align: 'right' })
+    return cols
+  }, [hideAccount, hideContact, hideStage, hideAmount, hideMargin, hideCloseDate, contactLabel])
+
   function openCreateModal() {
-    setCreateForm(EMPTY_FORM)
+    setCreateForm({ ...EMPTY_FORM, stage: defaultStageName })
     setCreateError('')
     setCreateOpen(true)
   }
 
   async function handleCreateSubmit(event) {
     event.preventDefault()
-    if (!createForm.title.trim()) {
+    if (!hideTitle && !isFieldReadOnly(fr, 'title') && !createForm.title.trim()) {
       setCreateError('Deal title is required.')
+      return
+    }
+    if (createForm.visibility === 'role' && !createForm.shared_role_id) {
+      setCreateError('Select a role to share this deal with.')
       return
     }
     setCreateError('')
     setCreating(true)
+    const fieldPayload = filterWritablePayload(
+      {
+        title: createForm.title.trim(),
+        account_id: createForm.account_id ? Number(createForm.account_id) : null,
+        contact_id: createForm.contact_id ? Number(createForm.contact_id) : null,
+        amount: createForm.amount || '0.00',
+        stage: createForm.stage || defaultStageName,
+        target_close_date: createForm.target_close_date || null,
+        win_probability: createForm.win_probability === '' ? null : Number(createForm.win_probability),
+        estimated_margin: createForm.estimated_margin === '' ? null : createForm.estimated_margin,
+        notes: createForm.notes,
+      },
+      fr,
+      DEAL_FIELD_MAP,
+    )
     const res = await pane.createRecord({
-      title: createForm.title.trim(),
-      account_id: createForm.account_id ? Number(createForm.account_id) : null,
-      contact_id: createForm.contact_id ? Number(createForm.contact_id) : null,
-      amount: createForm.amount || '0.00',
-      stage: createForm.stage || 'New',
-      target_close_date: createForm.target_close_date || null,
-      win_probability: createForm.win_probability === '' ? null : Number(createForm.win_probability),
-      notes: createForm.notes,
+      ...fieldPayload,
+      visibility: createForm.visibility,
+      ...(createForm.visibility === 'role'
+        ? { shared_role_id: Number(createForm.shared_role_id) }
+        : {}),
     })
     setCreating(false)
     if (!res.ok) {
@@ -183,22 +423,50 @@ export function DealsPane({
       return
     }
     setCreateOpen(false)
+    reloadBoard()
   }
 
   async function handleSaveInspector() {
+    const fieldPayload = filterWritablePayload(
+      {
+        title: formValues.title.trim(),
+        account_id: formValues.account_id ? Number(formValues.account_id) : null,
+        contact_id: formValues.contact_id ? Number(formValues.contact_id) : null,
+        amount: formValues.amount || '0.00',
+        stage: formValues.stage,
+        target_close_date: formValues.target_close_date || null,
+        win_probability: formValues.win_probability === '' ? null : Number(formValues.win_probability),
+        estimated_margin: formValues.estimated_margin === '' ? null : formValues.estimated_margin,
+        notes: formValues.notes,
+      },
+      fr,
+      DEAL_FIELD_MAP,
+    )
+    const sharingPayload = active?.can_manage_sharing
+      ? {
+          visibility: formValues.visibility,
+          shared_role_id:
+            formValues.visibility === 'role' && formValues.shared_role_id
+              ? Number(formValues.shared_role_id)
+              : null,
+        }
+      : {}
     const ok = await pane.saveInspectorRecord({
-      title: formValues.title.trim(),
-      account_id: formValues.account_id ? Number(formValues.account_id) : null,
-      contact_id: formValues.contact_id ? Number(formValues.contact_id) : null,
-      amount: formValues.amount || '0.00',
-      stage: formValues.stage,
-      target_close_date: formValues.target_close_date || null,
-      win_probability: formValues.win_probability === '' ? null : Number(formValues.win_probability),
-      notes: formValues.notes,
+      ...fieldPayload,
+      ...sharingPayload,
     })
     if (ok) {
       setDraft(null)
+      reloadBoard()
     }
+  }
+
+  async function handleDeleteActiveRecord() {
+    const res = await pane.deleteActiveRecord()
+    if (res?.ok) {
+      reloadBoard()
+    }
+    return res
   }
 
   function handleInspect(recordId) {
@@ -206,84 +474,85 @@ export function DealsPane({
     pane.openInspector(recordId)
   }
 
-  const stageCounts = pane.summary?.stage_counts || {}
-  const dealsByStage = useMemo(() => {
-    const grouped = {}
-    for (const stage of STARTER_STAGES) {
-      grouped[stage] = []
+  async function handleMoveDealStage(deal, targetStageName) {
+    if (!workspaceSlug || !deal || !targetStageName || deal.stage === targetStageName) {
+      return
     }
-    for (const deal of pane.records) {
-      const bucket = grouped[deal.stage] ? deal.stage : 'New'
-      grouped[bucket].push(deal)
-    }
-    return grouped
-  }, [pane.records])
+    const oldStageName = deal.stage
+    const previousBoard = boardData
+    setMoveError('')
+    setMoveNotice('')
+    setMovingDealId(deal.id)
+    setBoardData((prev) => applyOptimisticBoardMove(prev, deal, targetStageName))
 
-  const boardPreview =
+    try {
+      const { response, data } = await updateCrmRecord(
+        workspaceSlug,
+        'deal',
+        deal.id,
+        { stage: targetStageName },
+      )
+      if (!response.ok) {
+        if (response.status === 401) {
+          onSessionExpired?.(data?.error || data?.detail)
+          return
+        }
+        setBoardData(previousBoard)
+        setMoveError(data?.error || 'Could not update deal stage.')
+        reloadBoard()
+        pane.reload()
+        return
+      }
+
+      setMoveNotice(`Moved "${deal.title ?? deal.display_label}" from ${oldStageName} to ${targetStageName}.`)
+      onAuditRecorded?.()
+      reloadBoard()
+      pane.reload()
+      if (pane.activeRecord?.id === deal.id) {
+        pane.refreshActiveRecord()
+      }
+    } catch {
+      setBoardData(previousBoard)
+      setMoveError('Unable to reach the server while moving deal stage.')
+    } finally {
+      setMovingDealId(null)
+    }
+  }
+
+  function handleViewStageInTable(stageName) {
+    pane.updateFilter('stage', stageName)
+    onSubtabChange?.('list')
+  }
+
+  const effectiveSummary =
+    viewMode === 'kanban' ? boardData?.summary || pane.summary : pane.summary
+  const effectiveTotalCount =
+    viewMode === 'kanban'
+      ? boardData?.total_count ?? pane.totalCount
+      : pane.totalCount
+  const effectiveLoading = viewMode === 'kanban' ? boardLoading : pane.loading
+  const effectiveLoadError =
+    viewMode === 'kanban' ? boardError || pane.loadError : pane.loadError
+  const pipelineLabel =
+    boardData?.pipeline?.name ||
+    pane.summary?.pipeline?.name ||
+    pane.optionsData?.constants?.pipeline?.name ||
+    'Sales Pipeline'
+
+  const kanbanBoardContent =
     viewMode === 'kanban' ? (
-      <div className="space-y-3">
-        <Card variant="subtle" className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <span className="text-sub">
-            Stage-grouped preview across the starter pipeline. Click any card to inspect or edit stage details.
-            {pane.totalPages > 1
-              ? ` Showing page ${pane.page} of ${pane.totalPages} (${pane.records.length} of ${pane.totalCount} matching deals).`
-              : ''}
-          </span>
-          <span className="badge badge-neutral">Board preview</span>
-        </Card>
-        {pane.loading && pane.records.length === 0 ? (
-          <Card className="p-5">
-            <p className="text-xs text-sub">Loading pipeline board...</p>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4 items-start">
-            {STARTER_STAGES.map((stage) => {
-              const items = dealsByStage[stage] || []
-              return (
-                <Card key={stage} className="p-3 space-y-2.5">
-                  <div className="flex items-center justify-between gap-2 pb-2 border-b crm-border">
-                    <span className="text-xs font-semibold text-main">{stage}</span>
-                    <span className="badge badge-neutral num-tabular">
-                      {stageCounts[stage] ?? items.length}
-                    </span>
-                  </div>
-                  {items.length === 0 ? (
-                    <p className="text-[11px] text-sub py-2">No deals in {stage}.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {items.map((deal) => (
-                        <button
-                          key={deal.id}
-                          type="button"
-                          onClick={() => handleInspect(deal.id)}
-                          className="w-full text-left crm-subtle crm-hover p-3 space-y-1.5 transition-colors"
-                        >
-                          <div className="text-xs font-semibold text-main truncate">
-                            {deal.title}
-                          </div>
-                          <div className="text-[11px] text-sub truncate">
-                            {deal.account?.name || deal.contact?.name || 'Unlinked'}
-                          </div>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-bold text-main num-tabular">
-                              {formatGhs(deal.amount)}
-                            </span>
-                            {deal.source_lead?.record_code ? (
-                              <span className="badge badge-neutral text-[10px] num-tabular">
-                                From {deal.source_lead.record_code}
-                              </span>
-                            ) : null}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </Card>
-              )
-            })}
-          </div>
-        )}
-      </div>
+      <DealKanbanBoard
+        stages={boardData?.stages || []}
+        loading={boardLoading}
+        canUpdate={pane.rights.canUpdate}
+        fieldRights={fr}
+        movingDealId={movingDealId}
+        moveError={moveError}
+        moveNotice={moveNotice}
+        onMoveDeal={handleMoveDealStage}
+        onInspectDeal={handleInspect}
+        onViewStageInTable={handleViewStageInTable}
+      />
     ) : null
 
   return (
@@ -291,7 +560,7 @@ export function DealsPane({
       <CrmListPage
         id="pane-deals"
         title="Deals & Pipeline"
-        subtitle="Manage opportunities across New, Qualified, Proposal, Won, and Lost stages."
+        subtitle={`Manage opportunities across your ${pipelineLabel} stages. Drag cards across columns or inspect any deal.`}
         roleName={roleName}
         canRead={pane.rights.canRead}
         canCreate={pane.rights.canCreate}
@@ -328,6 +597,31 @@ export function DealsPane({
                 <span>Convert Lead</span>
               </Button>
             ) : null}
+            {canManageSales && onOpenPipelineSettings ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onOpenPipelineSettings}
+                className="px-3 py-1.5 text-xs flex items-center space-x-1.5"
+              >
+                <svg
+                  className="w-3.5 h-3.5 text-sub shrink-0"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  aria-hidden="true"
+                >
+                  <line x1="4" y1="21" x2="4" y2="14" />
+                  <line x1="4" y1="10" x2="4" y2="3" />
+                  <line x1="12" y1="21" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12" y2="3" />
+                  <line x1="20" y1="21" x2="20" y2="16" />
+                  <line x1="20" y1="12" x2="20" y2="3" />
+                </svg>
+                <span>Edit Stages</span>
+              </Button>
+            ) : null}
             <Subtabs
               tabs={DEALS_SUBTABS}
               activeId={viewMode}
@@ -339,14 +633,18 @@ export function DealsPane({
         stats={[
           {
             label: 'Visible deals',
-            value: pane.totalCount,
+            value: effectiveTotalCount,
             caption: 'Opportunities in this view',
           },
-          {
-            label: 'Pipeline value',
-            value: formatGhs(pane.summary?.total_amount || 0),
-            caption: 'Total GHS across filtered deals',
-          },
+          ...(!hideAmount
+            ? [
+                {
+                  label: 'Pipeline value',
+                  value: formatGhs(effectiveSummary?.total_amount || 0),
+                  caption: 'Total GHS across visible deals',
+                },
+              ]
+            : []),
         ]}
         extraContent={
           <div className="space-y-4">
@@ -356,39 +654,57 @@ export function DealsPane({
               onOpenRecord={onOpenLinkedRecord}
               onDismiss={() => setConversionResult(null)}
             />
-            <PipelineStageDistribution summary={pane.summary} />
+            {!hideStage && !hideAmount ? (
+              <PipelineStageDistribution
+                summary={effectiveSummary}
+                stages={activeStages}
+              />
+            ) : null}
           </div>
         }
-        toolbarCaption="Open a deal to update details, change stage, or log activities."
+        toolbarCaption={
+          viewMode === 'kanban'
+            ? canManageSales
+              ? 'Drag cards across stages or use card arrows to move deals. Use Edit Stages to customize columns.'
+              : 'Drag cards across stages or use card arrows to move deals.'
+            : 'Open a deal to update details, change stage, or log activities.'
+        }
         searchValue={pane.search}
         onSearchChange={pane.setSearch}
         searchPlaceholder="Search deals..."
         filters={
-          <div className="w-40">
-            <Select
-              id="deal-stage-filter"
-              ariaLabel="Filter deals by stage"
-              value={pane.filters.stage || ''}
-              onChange={(val) => pane.updateFilter('stage', val)}
-              options={STAGE_FILTER_OPTIONS}
-            />
-          </div>
+          <>
+            {viewMode === 'list' && !hideStage ? (
+              <div className="w-40">
+                <Select
+                  id="deal-stage-filter"
+                  ariaLabel="Filter deals by stage"
+                  value={pane.filters.stage || ''}
+                  onChange={(val) => pane.updateFilter('stage', val)}
+                  options={stageFilterOptions}
+                />
+              </div>
+            ) : null}
+            <div className="w-40">
+              <Select
+                id="deal-visibility-filter"
+                ariaLabel="Filter deals by sharing"
+                value={pane.filters.visibility || ''}
+                onChange={(val) => pane.updateFilter('visibility', val)}
+                options={VISIBILITY_FILTER_OPTIONS}
+              />
+            </div>
+          </>
         }
-        loading={pane.loading}
-        error={pane.loadError}
+        loading={effectiveLoading}
+        error={effectiveLoadError}
         records={pane.records}
         emptyMessage="No deals yet."
         hideTable={viewMode === 'kanban'}
         keepToolbarWhenTableHidden
-        customTableContent={boardPreview}
-        columns={[
-          { key: 'title', label: 'Deal Name' },
-          { key: 'account', label: `Account & ${contactLabel}` },
-          { key: 'stage', label: 'Stage' },
-          { key: 'amount', label: 'Value (GHS)' },
-          { key: 'close', label: 'Target Close' },
-          { key: 'action', label: 'Action', align: 'right' },
-        ]}
+        hidePaginationWhenTableHidden
+        customTableContent={kanbanBoardContent}
+        columns={columns}
         renderRow={(deal) => (
           <tr
             key={deal.id}
@@ -396,26 +712,49 @@ export function DealsPane({
             onClick={() => handleInspect(deal.id)}
           >
             <td className="py-3 px-4 font-medium text-main">
-              <div>{deal.title}</div>
+              <div>{deal.title ?? deal.display_label}</div>
               {deal.source_lead?.record_code ? (
                 <div className="text-[11px] text-sub font-normal num-tabular">
                   From {deal.source_lead.record_code}
                 </div>
               ) : null}
             </td>
-            <td className="py-3 px-4 text-sub">
-              {[deal.account?.name, deal.contact?.name].filter(Boolean).join(' · ') || 'Unlinked'}
-            </td>
+            {!hideAccount || !hideContact ? (
+              <td className="py-3 px-4 text-sub">
+                {[deal.account?.name, deal.contact?.name].filter(Boolean).join(' · ') || 'Unlinked'}
+              </td>
+            ) : null}
+            {!hideStage ? (
+              <td className="py-3 px-4">
+                <span
+                  className={getStageBadgeClass(
+                    deal.stage_tone || stageToneByName[deal.stage],
+                    deal.stage,
+                  )}
+                >
+                  {deal.stage}
+                </span>
+              </td>
+            ) : null}
+            {!hideAmount ? (
+              <td className="py-3 px-4 font-semibold text-main num-tabular">
+                {formatGhs(deal.amount)}
+              </td>
+            ) : null}
+            {!hideMargin ? (
+              <td className="py-3 px-4 text-sub num-tabular">
+                {deal.estimated_margin !== null && deal.estimated_margin !== undefined
+                  ? formatGhs(deal.estimated_margin)
+                  : 'Not set'}
+              </td>
+            ) : null}
+            {!hideCloseDate ? (
+              <td className="py-3 px-4 text-sub num-tabular">
+                {deal.target_close_date ? formatDateOnly(deal.target_close_date) : 'Not set'}
+              </td>
+            ) : null}
             <td className="py-3 px-4">
-              <span className={STAGE_BADGES[deal.stage] || 'badge badge-neutral'}>
-                {deal.stage}
-              </span>
-            </td>
-            <td className="py-3 px-4 font-semibold text-main num-tabular">
-              {formatGhs(deal.amount)}
-            </td>
-            <td className="py-3 px-4 text-sub num-tabular">
-              {deal.target_close_date ? formatDateOnly(deal.target_close_date) : 'Not set'}
+              <SharingBadge record={deal} />
             </td>
             <td
               className="py-3 px-4 text-right"
@@ -434,7 +773,7 @@ export function DealsPane({
         )}
         page={pane.page}
         totalPages={pane.totalPages}
-        totalCount={pane.totalCount}
+        totalCount={effectiveTotalCount}
         hasPrevious={pane.hasPrevious}
         hasNext={pane.hasNext}
         onPageChange={pane.setPage}
@@ -445,7 +784,7 @@ export function DealsPane({
       <Modal
         open={createOpen}
         title="Create New Deal"
-        subtitle="Add a sales opportunity to the starter pipeline."
+        subtitle={`Add a sales opportunity to ${pipelineLabel}.`}
         onClose={() => {
           if (!creating) setCreateOpen(false)
         }}
@@ -474,135 +813,169 @@ export function DealsPane({
       >
         <form id="create-deal-form" onSubmit={handleCreateSubmit} className="space-y-3 text-xs">
           <FeedbackNotice tone="danger" message={createError} />
-          <div>
-            <label htmlFor="new-deal-title" className="block font-medium text-body mb-1">
-              Deal title
-            </label>
-            <input
-              id="new-deal-title"
-              type="text"
-              required
-              value={createForm.title}
-              onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
-              placeholder="e.g. Tema Refinery Pump Replacement"
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-deal-account" className="block font-medium text-body mb-1">
-                Account
-              </label>
-              <Select
-                id="new-deal-account"
-                ariaLabel="Account"
-                value={createForm.account_id}
-                onChange={(val) =>
-                  setCreateForm((f) => applyAccountContactChange(f, 'account_id', val))
-                }
-                options={accountOptions}
-                disabled={creating}
-              />
-            </div>
-            <div>
-              <label htmlFor="new-deal-contact" className="block font-medium text-body mb-1">
-                {contactLabel}
-              </label>
-              <Select
-                id="new-deal-contact"
-                ariaLabel={contactLabel}
-                value={createForm.contact_id}
-                onChange={(val) =>
-                  setCreateForm((f) => applyAccountContactChange(f, 'contact_id', val))
-                }
-                options={getFilteredContactOptions(createForm.account_id)}
-                disabled={creating}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-deal-amount" className="block font-medium text-body mb-1">
-                Amount (GHS)
-              </label>
+          {!hideTitle ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-deal-title" label="Deal title" readOnly={isFieldReadOnly(fr, 'title')} />
               <input
-                id="new-deal-amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={createForm.amount}
-                onChange={(e) => setCreateForm((f) => ({ ...f, amount: e.target.value }))}
-                disabled={creating}
-                className="crm-input w-full px-3 py-2 num-tabular"
-              />
-            </div>
-            <div>
-              <label htmlFor="new-deal-stage" className="block font-medium text-body mb-1">
-                Stage
-              </label>
-              <Select
-                id="new-deal-stage"
-                ariaLabel="Stage"
-                value={createForm.stage}
-                onChange={(val) => setCreateForm((f) => ({ ...f, stage: val }))}
-                options={STAGE_FIELD_OPTIONS}
-                disabled={creating}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-deal-close" className="block font-medium text-body mb-1">
-                Target close date
-              </label>
-              <input
-                id="new-deal-close"
-                type="date"
-                value={createForm.target_close_date}
-                onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, target_close_date: e.target.value }))
-                }
-                disabled={creating}
+                id="new-deal-title"
+                type="text"
+                required={!isFieldReadOnly(fr, 'title')}
+                value={createForm.title}
+                onChange={(e) => setCreateForm((f) => ({ ...f, title: e.target.value }))}
+                placeholder="e.g. Tema Refinery Pump Replacement"
+                disabled={creating || isFieldReadOnly(fr, 'title')}
                 className="crm-input w-full px-3 py-2"
               />
             </div>
-            <div>
-              <label htmlFor="new-deal-prob" className="block font-medium text-body mb-1">
-                Win probability (%)
-              </label>
+          ) : null}
+
+          {!hideAccount || !hideContact ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!hideAccount ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-deal-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
+                  <Select
+                    id="new-deal-account"
+                    ariaLabel="Account"
+                    value={createForm.account_id}
+                    onChange={(val) =>
+                      setCreateForm((f) => applyAccountContactChange(f, 'account_id', val))
+                    }
+                    options={accountOptions}
+                    disabled={creating || isFieldReadOnly(fr, 'account')}
+                  />
+                </div>
+              ) : null}
+              {!hideContact ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-deal-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
+                  <Select
+                    id="new-deal-contact"
+                    ariaLabel={contactLabel}
+                    value={createForm.contact_id}
+                    onChange={(val) =>
+                      setCreateForm((f) => applyAccountContactChange(f, 'contact_id', val))
+                    }
+                    options={getFilteredContactOptions(createForm.account_id)}
+                    disabled={creating || isFieldReadOnly(fr, 'contact')}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!hideAmount || !hideStage ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!hideAmount ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-deal-amount" label="Amount (GHS)" readOnly={isFieldReadOnly(fr, 'amount')} />
+                  <input
+                    id="new-deal-amount"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={createForm.amount}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, amount: e.target.value }))}
+                    disabled={creating || isFieldReadOnly(fr, 'amount')}
+                    className="crm-input w-full px-3 py-2 num-tabular"
+                  />
+                </div>
+              ) : null}
+              {!hideStage ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-deal-stage" label="Stage" readOnly={isFieldReadOnly(fr, 'stage')} />
+                  <Select
+                    id="new-deal-stage"
+                    ariaLabel="Stage"
+                    value={createForm.stage}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, stage: val }))}
+                    options={stageFieldOptions}
+                    disabled={creating || isFieldReadOnly(fr, 'stage')}
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!hideCloseDate || !hideWinProb ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!hideCloseDate ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-deal-close" label="Target close date" readOnly={isFieldReadOnly(fr, 'target_close_date')} />
+                  <input
+                    id="new-deal-close"
+                    type="date"
+                    value={createForm.target_close_date}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({ ...f, target_close_date: e.target.value }))
+                    }
+                    disabled={creating || isFieldReadOnly(fr, 'target_close_date')}
+                    className="crm-input w-full px-3 py-2"
+                  />
+                </div>
+              ) : null}
+              {!hideWinProb ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-deal-prob" label="Win probability (%)" readOnly={isFieldReadOnly(fr, 'win_probability')} />
+                  <input
+                    id="new-deal-prob"
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={createForm.win_probability}
+                    onChange={(e) =>
+                      setCreateForm((f) => ({ ...f, win_probability: e.target.value }))
+                    }
+                    placeholder="0 - 100"
+                    disabled={creating || isFieldReadOnly(fr, 'win_probability')}
+                    className="crm-input w-full px-3 py-2 num-tabular"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {!hideMargin ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-deal-margin" label="Estimated margin (GHS)" readOnly={isFieldReadOnly(fr, 'estimated_margin')} />
               <input
-                id="new-deal-prob"
+                id="new-deal-margin"
                 type="number"
                 min="0"
-                max="100"
-                value={createForm.win_probability}
+                step="0.01"
+                value={createForm.estimated_margin}
                 onChange={(e) =>
-                  setCreateForm((f) => ({ ...f, win_probability: e.target.value }))
+                  setCreateForm((f) => ({ ...f, estimated_margin: e.target.value }))
                 }
-                placeholder="0 - 100"
-                disabled={creating}
+                placeholder="Optional internal margin"
+                disabled={creating || isFieldReadOnly(fr, 'estimated_margin')}
                 className="crm-input w-full px-3 py-2 num-tabular"
               />
             </div>
-          </div>
+          ) : null}
 
-          <div>
-            <label htmlFor="new-deal-notes" className="block font-medium text-body mb-1">
-              Notes
-            </label>
-            <textarea
-              id="new-deal-notes"
-              rows={2}
-              value={createForm.notes}
-              onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
+          {!hideNotes ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-deal-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+              <textarea
+                id="new-deal-notes"
+                rows={2}
+                value={createForm.notes}
+                onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
+                disabled={creating || isFieldReadOnly(fr, 'notes')}
+                className="crm-input w-full px-3 py-2"
+              />
+            </div>
+          ) : null}
+
+          <RecordSharingControl
+            idPrefix="new-deal-sharing"
+            visibility={createForm.visibility}
+            sharedRoleId={createForm.shared_role_id}
+            roles={pane.optionsData?.roles || []}
+            disabled={creating}
+            onChange={(next) => setCreateForm((f) => ({ ...f, ...next }))}
+          />
         </form>
       </Modal>
 
@@ -617,7 +990,8 @@ export function DealsPane({
         contactLabel={contactLabel}
         contactPluralLabel={contactPlural}
         assignees={pane.optionsData?.assignees || []}
-        workspaceSlug={workspace?.slug}
+        roles={pane.optionsData?.roles || []}
+        workspaceSlug={workspaceSlug}
         userTimezone={user?.timezone || 'Africa/Accra'}
         permissions={permissions}
         record={active}
@@ -628,151 +1002,184 @@ export function DealsPane({
         notice={pane.actionNotice}
         canUpdate={pane.rights.canUpdate}
         canDelete={pane.rights.canDelete}
+        sharingValue={{
+          visibility: formValues.visibility,
+          shared_role_id: formValues.shared_role_id,
+        }}
+        onSharingChange={(next) => setDraft({ ...formValues, ...next })}
         onSave={handleSaveInspector}
-        onDelete={pane.deleteActiveRecord}
+        onDelete={handleDeleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
-        badgeText={active?.stage || ''}
-        badgeClassName={STAGE_BADGES[active?.stage] || 'badge badge-neutral'}
+        badgeText={!hideStage ? active?.stage || '' : ''}
+        badgeClassName={getStageBadgeClass(
+          active?.stage_tone || stageToneByName[active?.stage],
+          active?.stage,
+        )}
       >
-        <div>
-          <label htmlFor="deal-insp-title" className="block font-medium text-body mb-1">
-            Deal title
-          </label>
-          <input
-            id="deal-insp-title"
-            type="text"
-            value={formValues.title}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => setDraft({ ...formValues, title: e.target.value })}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="deal-insp-account" className="block font-medium text-body mb-1">
-              Account
-            </label>
-            <Select
-              id="deal-insp-account"
-              ariaLabel="Account"
-              value={formValues.account_id}
-              onChange={(val) =>
-                setDraft(applyAccountContactChange(formValues, 'account_id', val))
-              }
-              options={accountOptions}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
-          </div>
-          <div>
-            <label htmlFor="deal-insp-contact" className="block font-medium text-body mb-1">
-              {contactLabel}
-            </label>
-            <Select
-              id="deal-insp-contact"
-              ariaLabel={contactLabel}
-              value={formValues.contact_id}
-              onChange={(val) =>
-                setDraft(applyAccountContactChange(formValues, 'contact_id', val))
-              }
-              options={getFilteredContactOptions(formValues.account_id)}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="deal-insp-amount" className="block font-medium text-body mb-1">
-              Amount (GHS)
-            </label>
+        {!hideTitle ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="deal-insp-title" label="Deal title" readOnly={isFieldReadOnly(fr, 'title')} />
             <input
-              id="deal-insp-amount"
-              type="number"
-              min="0"
-              step="0.01"
-              value={formValues.amount}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-              onChange={(e) => setDraft({ ...formValues, amount: e.target.value })}
-              className="crm-input w-full px-3 py-2 num-tabular"
-            />
-          </div>
-          <div>
-            <label htmlFor="deal-insp-stage" className="block font-medium text-body mb-1">
-              Stage
-            </label>
-            <Select
-              id="deal-insp-stage"
-              ariaLabel="Stage"
-              value={formValues.stage}
-              onChange={(val) => setDraft({ ...formValues, stage: val })}
-              options={STAGE_FIELD_OPTIONS}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="deal-insp-close" className="block font-medium text-body mb-1">
-              Target close date
-            </label>
-            <input
-              id="deal-insp-close"
-              type="date"
-              value={formValues.target_close_date}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-              onChange={(e) =>
-                setDraft({ ...formValues, target_close_date: e.target.value })
-              }
+              id="deal-insp-title"
+              type="text"
+              value={formValues.title}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'title')}
+              onChange={(e) => setDraft({ ...formValues, title: e.target.value })}
               className="crm-input w-full px-3 py-2"
             />
           </div>
-          <div>
-            <label htmlFor="deal-insp-prob" className="block font-medium text-body mb-1">
-              Win probability (%)
-            </label>
+        ) : null}
+
+        {!hideAccount || !hideContact ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideAccount ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="deal-insp-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
+                <Select
+                  id="deal-insp-account"
+                  ariaLabel="Account"
+                  value={formValues.account_id}
+                  onChange={(val) =>
+                    setDraft(applyAccountContactChange(formValues, 'account_id', val))
+                  }
+                  options={accountOptions}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'account')}
+                />
+              </div>
+            ) : null}
+            {!hideContact ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="deal-insp-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
+                <Select
+                  id="deal-insp-contact"
+                  ariaLabel={contactLabel}
+                  value={formValues.contact_id}
+                  onChange={(val) =>
+                    setDraft(applyAccountContactChange(formValues, 'contact_id', val))
+                  }
+                  options={getFilteredContactOptions(formValues.account_id)}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'contact')}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!hideAmount || !hideStage ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideAmount ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="deal-insp-amount" label="Amount (GHS)" readOnly={isFieldReadOnly(fr, 'amount')} />
+                <input
+                  id="deal-insp-amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formValues.amount}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'amount')}
+                  onChange={(e) => setDraft({ ...formValues, amount: e.target.value })}
+                  className="crm-input w-full px-3 py-2 num-tabular"
+                />
+              </div>
+            ) : null}
+            {!hideStage ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="deal-insp-stage" label="Stage" readOnly={isFieldReadOnly(fr, 'stage')} />
+                <Select
+                  id="deal-insp-stage"
+                  ariaLabel="Stage"
+                  value={formValues.stage}
+                  onChange={(val) => setDraft({ ...formValues, stage: val })}
+                  options={stageFieldOptions}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'stage')}
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!hideCloseDate || !hideWinProb ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideCloseDate ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="deal-insp-close" label="Target close date" readOnly={isFieldReadOnly(fr, 'target_close_date')} />
+                <input
+                  id="deal-insp-close"
+                  type="date"
+                  value={formValues.target_close_date}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'target_close_date')}
+                  onChange={(e) =>
+                    setDraft({ ...formValues, target_close_date: e.target.value })
+                  }
+                  className="crm-input w-full px-3 py-2"
+                />
+              </div>
+            ) : null}
+            {!hideWinProb ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="deal-insp-prob" label="Win probability (%)" readOnly={isFieldReadOnly(fr, 'win_probability')} />
+                <input
+                  id="deal-insp-prob"
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={formValues.win_probability}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'win_probability')}
+                  onChange={(e) =>
+                    setDraft({ ...formValues, win_probability: e.target.value })
+                  }
+                  className="crm-input w-full px-3 py-2 num-tabular"
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {!hideMargin ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="deal-insp-margin" label="Estimated margin (GHS)" readOnly={isFieldReadOnly(fr, 'estimated_margin')} />
             <input
-              id="deal-insp-prob"
+              id="deal-insp-margin"
               type="number"
               min="0"
-              max="100"
-              value={formValues.win_probability}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
+              step="0.01"
+              value={formValues.estimated_margin}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'estimated_margin')}
               onChange={(e) =>
-                setDraft({ ...formValues, win_probability: e.target.value })
+                setDraft({ ...formValues, estimated_margin: e.target.value })
               }
               className="crm-input w-full px-3 py-2 num-tabular"
             />
           </div>
-        </div>
+        ) : null}
 
-        <div>
-          <label htmlFor="deal-insp-notes" className="block font-medium text-body mb-1">
-            Notes
-          </label>
-          <textarea
-            id="deal-insp-notes"
-            rows={3}
-            value={formValues.notes}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => setDraft({ ...formValues, notes: e.target.value })}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
+        {!hideNotes ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="deal-insp-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+            <textarea
+              id="deal-insp-notes"
+              rows={3}
+              value={formValues.notes}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'notes')}
+              onChange={(e) => setDraft({ ...formValues, notes: e.target.value })}
+              className="crm-input w-full px-3 py-2"
+            />
+          </div>
+        ) : null}
       </RecordInspectorDrawer>
 
       {conversionEnabled ? (
         <ConvertLeadModal
           open={convertModalOpen}
           onClose={() => setConvertModalOpen(false)}
-          workspaceSlug={workspace?.slug}
+          workspaceSlug={workspaceSlug}
           contactLabel={contactLabel}
           onConverted={(data) => {
             setConversionResult(data)
             onAuditRecorded?.()
+            reloadBoard()
             pane.reload()
           }}
           onSessionExpired={onSessionExpired}
