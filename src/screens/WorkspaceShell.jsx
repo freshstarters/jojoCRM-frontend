@@ -552,7 +552,7 @@ export function WorkspaceShell({
             <div
               role="status"
               aria-live="polite"
-              className="fixed bottom-4 right-4 z-50 brand-soft border crm-border rounded-xl px-4 py-2.5 shadow-lg flex items-center gap-3 text-xs font-medium max-w-sm"
+              className="fixed bottom-4 right-4 z-50 brand-soft backdrop-blur-md border crm-border rounded-xl px-4 py-2.5 shadow-lg flex items-center gap-3 text-xs font-medium max-w-sm"
             >
               <span>{permissionsToast}</span>
               <button

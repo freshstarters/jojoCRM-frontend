@@ -70,22 +70,28 @@ export function DashboardPane({
   const countsByObject = dashboardData?.counts_by_object || {}
   const openCounts = dashboardData?.open_counts || {}
   const dealSummary = dashboardData?.deal_summary || null
+  const dealAmountVisible =
+    dealSummary?.total_amount !== null && dealSummary?.total_amount !== undefined
+  const dealStageVisible =
+    Boolean(dealSummary?.stage_counts) &&
+    Object.keys(dealSummary.stage_counts).length > 0
   const recentRecords = dashboardData?.recent_records || []
   const totalRecords = dashboardData?.total_records ?? 0
 
-  const stageDonutItems = dealSummary
-    ? Array.isArray(dealSummary.stages) && dealSummary.stages.length > 0
-      ? dealSummary.stages.map((stage) => ({
-          label: stage.name,
-          count: dealSummary.stage_counts?.[stage.name] ?? 0,
-          color: getStageColor(stage.tone, stage.name),
-        }))
-      : Object.entries(dealSummary.stage_counts || {}).map(([stage, count]) => ({
-          label: stage,
-          count,
-          color: getStageColor(dealSummary.stage_tones?.[stage], stage),
-        }))
-    : []
+  const stageDonutItems =
+    dealSummary && dealStageVisible
+      ? Array.isArray(dealSummary.stages) && dealSummary.stages.length > 0
+        ? dealSummary.stages.map((stage) => ({
+            label: stage.name,
+            count: dealSummary.stage_counts?.[stage.name] ?? 0,
+            color: getStageColor(stage.tone, stage.name),
+          }))
+        : Object.entries(dealSummary.stage_counts || {}).map(([stage, count]) => ({
+            label: stage,
+            count,
+            color: getStageColor(dealSummary.stage_tones?.[stage], stage),
+          }))
+      : []
 
   const objectCards = [
     { key: 'account', label: 'Accounts', paneId: 'accounts' },
@@ -103,7 +109,7 @@ export function DashboardPane({
       key: 'deal',
       label: 'Deals',
       paneId: 'deals',
-      caption: dealSummary ? formatGhs(dealSummary.total_amount) : undefined,
+      caption: dealAmountVisible ? formatGhs(dealSummary.total_amount) : undefined,
     },
     {
       key: 'job',
@@ -227,7 +233,7 @@ export function DashboardPane({
               <Card className="p-4 flex flex-col justify-between">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-sub">
-                    Pipeline value
+                    {dealAmountVisible ? 'Pipeline value' : 'Active deals'}
                   </span>
                   <Button
                     type="button"
@@ -239,11 +245,14 @@ export function DashboardPane({
                   </Button>
                 </div>
                 <div className="mt-1 text-xl font-bold text-main num-tabular">
-                  {formatGhs(dealSummary.total_amount)}
+                  {dealAmountVisible
+                    ? formatGhs(dealSummary.total_amount)
+                    : dealSummary.total_count}
                 </div>
                 <span className="text-[11px] text-sub num-tabular">
-                  {dealSummary.total_count}{' '}
-                  {dealSummary.total_count === 1 ? 'deal' : 'deals'}
+                  {dealAmountVisible
+                    ? `${dealSummary.total_count} ${dealSummary.total_count === 1 ? 'deal' : 'deals'}`
+                    : 'Across visible pipeline records'}
                 </span>
               </Card>
             ) : null}
@@ -319,7 +328,7 @@ export function DashboardPane({
             ) : null}
           </div>
 
-          {dealSummary ? (
+          {dealSummary && dealStageVisible ? (
             <Card className="p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div>
