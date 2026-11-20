@@ -5,6 +5,7 @@ import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { ActivityTimeline } from './ActivityTimeline.jsx'
 import { RecordLinksSection } from './RecordLinksSection.jsx'
+import { RecordSharingControl, SharingBadge } from './RecordSharingControl.jsx'
 
 export function RecordInspectorDrawer({
   open,
@@ -16,6 +17,7 @@ export function RecordInspectorDrawer({
   workspaceSlug,
   userTimezone = 'Africa/Accra',
   assignees = [],
+  roles = [],
   permissions,
   record,
   loading = false,
@@ -25,6 +27,8 @@ export function RecordInspectorDrawer({
   notice = '',
   canUpdate = false,
   canDelete = false,
+  sharingValue = null,
+  onSharingChange,
   onSave,
   onDelete,
   onActivityChanged,
@@ -100,6 +104,7 @@ export function RecordInspectorDrawer({
               <span className="badge badge-neutral num-tabular">
                 {record.record_code}
               </span>
+              <SharingBadge record={record} />
               {badgeText ? <span className={badgeClassName}>{badgeText}</span> : null}
             </div>
           ) : null}
@@ -119,6 +124,24 @@ export function RecordInspectorDrawer({
           ) : record ? (
             <>
               <div className="space-y-3 text-xs">{children}</div>
+
+              {onSharingChange ? (
+                <RecordSharingControl
+                  idPrefix={`${objectKey}-inspector-sharing`}
+                  visibility={sharingValue?.visibility ?? record.visibility ?? 'workspace'}
+                  sharedRoleId={
+                    sharingValue?.shared_role_id !== undefined
+                      ? sharingValue.shared_role_id
+                      : record.shared_role_id
+                        ? String(record.shared_role_id)
+                        : ''
+                  }
+                  roles={roles}
+                  canManageSharing={Boolean(record.can_manage_sharing)}
+                  disabled={!canUpdate || saving}
+                  onChange={onSharingChange}
+                />
+              ) : null}
 
               <RecordLinksSection
                 linkedRecords={record.linked_records}

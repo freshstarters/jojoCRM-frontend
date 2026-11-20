@@ -37,6 +37,7 @@ export function CrmListPage({
   pluralLabel = 'records',
   hideTable = false,
   keepToolbarWhenTableHidden = false,
+  hidePaginationWhenTableHidden = false,
   customTableContent = null,
 }) {
   const toolbarBar = (
@@ -161,7 +162,10 @@ export function CrmListPage({
 
           {customTableContent}
 
-          {hideTable && keepToolbarWhenTableHidden && totalCount > 0 ? (
+          {hideTable &&
+          keepToolbarWhenTableHidden &&
+          !hidePaginationWhenTableHidden &&
+          totalCount > 0 ? (
             <Card className="overflow-hidden">
               {paginationBar}
             </Card>

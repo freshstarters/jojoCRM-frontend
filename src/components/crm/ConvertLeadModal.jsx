@@ -9,7 +9,7 @@ import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { Select } from '../Select.jsx'
 
-const STAGE_OPTIONS = [
+const FALLBACK_STAGE_OPTIONS = [
   { value: 'New', label: 'New' },
   { value: 'Qualified', label: 'Qualified' },
   { value: 'Proposal', label: 'Proposal' },
@@ -167,31 +167,68 @@ function ConvertLeadModalContent({
         setPreviewError('')
         setPreviewData(data)
         const defaults = data?.defaults || {}
+        const caps = data?.capabilities || {}
         const nextAccName = defaults.account_name || ''
-        setAccountMode('create')
+        const canCreateAcc = caps.can_create_account !== false
+        const canReuseAcc = Boolean(caps.can_reuse_account)
+        const defaultAccMode = !canCreateAcc && canReuseAcc ? 'reuse' : 'create'
+        const firstAccMatch = data?.account_matches?.[0] || null
+
+        const canCreateCon = caps.can_create_contact !== false
+        const canReuseCon = Boolean(caps.can_reuse_contact)
+        const defaultConMode = !canCreateCon && canReuseCon ? 'reuse' : 'create'
+        const canUpdateCon = caps.can_update_contact !== false
+        const firstConMatch =
+          (!canUpdateCon && Array.isArray(data?.contact_matches)
+            ? data.contact_matches.find((c) => Boolean(c.account_id))
+            : null) ||
+          data?.contact_matches?.[0] ||
+          null
+        const lockedByConAccId =
+          defaultConMode === 'reuse' && firstConMatch?.account_id
+            ? String(firstConMatch.account_id)
+            : ''
+        const resolvedAccMode = lockedByConAccId ? 'reuse' : defaultAccMode
+
+        setAccountMode(resolvedAccMode)
         setSelectedAccountId(
-          data?.account_matches?.[0]?.id ? String(data.account_matches[0].id) : '',
+          lockedByConAccId || (firstAccMatch?.id ? String(firstAccMatch.id) : ''),
         )
         setAccountName(nextAccName)
         setAccountCity(defaults.account_city || '')
-        setShowAccountSearch(false)
+        setShowAccountSearch(
+          resolvedAccMode === 'reuse' && !lockedByConAccId && !firstAccMatch,
+        )
         setAccountSearch('')
         setSearchedAccounts([])
 
-        setContactMode('create')
-        setSelectedContactId(
-          data?.contact_matches?.[0]?.id ? String(data.contact_matches[0].id) : '',
-        )
+        setContactMode(defaultConMode)
+        setSelectedContactId(firstConMatch?.id ? String(firstConMatch.id) : '')
         setContactName(defaults.contact_name || '')
         setContactTitle(defaults.contact_title || '')
-        setShowContactSearch(false)
+        setShowContactSearch(defaultConMode === 'reuse' && !firstConMatch)
         setContactSearch('')
         setSearchedContacts([])
 
-        setDealTitle(defaults.deal_title || (nextAccName ? `${nextAccName} Deal` : ''))
+        const resolvedDealAccountTitle =
+          (lockedByConAccId && firstConMatch?.account_name) ||
+          (resolvedAccMode === 'reuse' && firstAccMatch?.name) ||
+          nextAccName
+        setDealTitle(
+          lockedByConAccId || resolvedAccMode === 'reuse'
+            ? resolvedDealAccountTitle
+              ? `${resolvedDealAccountTitle} Deal`
+              : ''
+            : defaults.deal_title || (nextAccName ? `${nextAccName} Deal` : ''),
+        )
         setDealTitleDirty(false)
         setDealAmount(defaults.deal_amount || '0.00')
-        setDealStage(defaults.deal_stage || 'Qualified')
+        const firstServerStage = data?.deal_stages?.[0]
+        const firstStageName =
+          typeof firstServerStage === 'string'
+            ? firstServerStage
+            : firstServerStage?.name || ''
+        setDealStage(defaults.deal_stage || firstStageName || 'Qualified')
         setTargetCloseDate(defaults.target_close_date || '')
         setWinProbability(
           defaults.win_probability !== null && defaults.win_probability !== undefined
@@ -387,6 +424,17 @@ function ConvertLeadModalContent({
     }
   }
 
+  const stageOptions = useMemo(() => {
+    const rawStages = previewData?.deal_stages
+    if (Array.isArray(rawStages) && rawStages.length > 0) {
+      return rawStages.map((stage) => {
+        const name = typeof stage === 'string' ? stage : stage.name
+        return { value: name, label: name }
+      })
+    }
+    return FALLBACK_STAGE_OPTIONS
+  }, [previewData?.deal_stages])
+
   const leadSelectOptions = useMemo(() => {
     if (leadOptionsList.length === 0) {
       return [{ value: '', label: leadsLoading ? 'Loading leads...' : 'No leads available' }]
@@ -411,6 +459,8 @@ function ConvertLeadModalContent({
     }))
   }, [combinedAccounts])
 
+  const canUpdateContact = previewData?.capabilities?.can_update_contact !== false
+
   const contactReuseOptions = useMemo(() => {
     if (combinedContacts.length === 0) {
       return [{ value: '', label: `Search or pick a ${contactLabel}` }]
@@ -419,13 +469,20 @@ function ConvertLeadModalContent({
       value: String(con.id),
       label: `${con.name}${con.account_name ? ` (${con.account_name})` : ' (Standalone)'}${
         con.match_reasons?.length ? ` · Match: ${con.match_reasons.join(', ')}` : ''
-      }`,
+      }${!con.account_id && !canUpdateContact ? ` · Requires ${contactLabel} update` : ''}`,
     }))
-  }, [combinedContacts, contactLabel])
+  }, [combinedContacts, contactLabel, canUpdateContact])
 
   const capabilities = previewData?.capabilities || {}
   const isConverted = Boolean(
     previewData?.already_converted || selectedLead?.status === 'converted',
+  )
+  const cannotLinkStandaloneContact = Boolean(
+    !isConverted &&
+      contactMode === 'reuse' &&
+      selectedReusedContact &&
+      !selectedReusedContact.account_id &&
+      !canUpdateContact,
   )
 
   async function handleSubmit(event) {
@@ -454,6 +511,12 @@ function ConvertLeadModalContent({
         )
         return
       }
+      if (cannotLinkStandaloneContact) {
+        setSubmitError(
+          `Your role lacks permission to update ${contactLabel}s, so standalone ${contactLabel} "${selectedReusedContact.name}" cannot be linked to an Account. Select a ${contactLabel} already on an Account or create a new one.`,
+        )
+        return
+      }
       if (!dealTitle.trim()) {
         setSubmitError('Deal title is required.')
         return
@@ -475,7 +538,7 @@ function ConvertLeadModalContent({
           }),
       deal_title: dealTitle.trim() || undefined,
       deal_amount: dealAmount === '' ? '0.00' : dealAmount,
-      deal_stage: dealStage || 'Qualified',
+      deal_stage: dealStage || stageOptions[0]?.value || undefined,
       target_close_date: targetCloseDate || null,
       win_probability: winProbability === '' ? null : Number(winProbability),
     }
@@ -512,7 +575,7 @@ function ConvertLeadModalContent({
       }}
       maxWidthClass="max-w-lg"
       title="Convert Lead to Deal"
-      subtitle="Create or link an Account, Contact, and Deal from an open lead. Converted leads remain on record."
+      subtitle={`Create or link an Account, ${contactLabel}, and Deal from an open lead. Converted leads remain on record.`}
       footer={
         <>
           <Button
@@ -840,6 +903,12 @@ function ConvertLeadModalContent({
                     options={contactReuseOptions}
                     disabled={submitting}
                   />
+                  {cannotLinkStandaloneContact ? (
+                    <FeedbackNotice
+                      tone="info"
+                      message={`Linking standalone ${contactLabel} "${selectedReusedContact.name}" to an Account requires ${contactLabel} update permission. Select a ${contactLabel} already on an Account or create a new one.`}
+                    />
+                  ) : null}
                   <div className="flex items-center gap-2">
                     {!showContactSearch ? (
                       <Button
@@ -923,7 +992,7 @@ function ConvertLeadModalContent({
                     ariaLabel="Initial pipeline stage"
                     value={dealStage}
                     onChange={setDealStage}
-                    options={STAGE_OPTIONS}
+                    options={stageOptions}
                     disabled={submitting}
                   />
                 </div>

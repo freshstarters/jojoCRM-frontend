@@ -2,7 +2,11 @@ import { useMemo, useState } from 'react'
 import {
   createRecordActivity,
   deleteCrmRecord,
+  filterWritablePayload,
+  getFieldRights,
   getObjectRights,
+  isFieldHidden,
+  isFieldReadOnly,
   updateCrmRecord,
 } from '../../service/crmService.js'
 import { buildAssigneeSelectOptions } from '../../utils/crmFormOptions.js'
@@ -41,6 +45,19 @@ export function ActivityTimeline({
   onSessionExpired,
 }) {
   const activityRights = getObjectRights(permissions, 'activity')
+  const activityFieldRights = getFieldRights(permissions, 'activity')
+  const hideSummary = isFieldHidden(activityFieldRights, 'summary')
+  const hideActivityType = isFieldHidden(activityFieldRights, 'activity_type')
+  const hideDueAt = isFieldHidden(activityFieldRights, 'due_at')
+  const hideAssignee = isFieldHidden(activityFieldRights, 'assignee')
+  const hideCompleted = isFieldHidden(activityFieldRights, 'is_completed')
+  const canCreateWithFields =
+    activityRights.canCreate &&
+    !hideSummary &&
+    !isFieldReadOnly(activityFieldRights, 'summary') &&
+    !hideActivityType &&
+    !isFieldReadOnly(activityFieldRights, 'activity_type')
+
   const assigneeOptions = useMemo(
     () => buildAssigneeSelectOptions(assignees, 'Unassigned'),
     [assignees],
@@ -75,14 +92,17 @@ export function ActivityTimeline({
     setError('')
     setSavingNew(true)
     try {
-      const payload = {
+      const rawPayload = {
         activity_type: newType,
         summary: trimmed,
         assignee_id: newAssigneeId ? Number(newAssigneeId) : null,
       }
       if (newType !== 'note' && newDueAt) {
-        payload.due_at = newDueAt
+        rawPayload.due_at = newDueAt
       }
+      const payload = filterWritablePayload(rawPayload, activityFieldRights, {
+        assignee_id: 'assignee',
+      })
       const { response, data } = await createRecordActivity(
         workspaceSlug,
         objectKey,
@@ -129,13 +149,16 @@ export function ActivityTimeline({
     setError('')
     setSavingEdit(true)
     try {
-      const payload = {
+      const rawPayload = {
         activity_type: editType,
         summary: trimmed,
         is_completed: editCompleted,
         assignee_id: editAssigneeId ? Number(editAssigneeId) : null,
         due_at: editType !== 'note' && editDueAt ? editDueAt : null,
       }
+      const payload = filterWritablePayload(rawPayload, activityFieldRights, {
+        assignee_id: 'assignee',
+      })
       const { response, data } = await updateCrmRecord(
         workspaceSlug,
         'activity',
@@ -224,7 +247,7 @@ export function ActivityTimeline({
 
       <FeedbackNotice tone="danger" message={error} />
 
-      {activityRights.canCreate ? (
+      {canCreateWithFields ? (
         <form onSubmit={handleAddActivity} className="space-y-2 text-xs">
           <div className="flex flex-col sm:flex-row gap-2">
             <div className="w-full sm:w-28 shrink-0">
@@ -255,7 +278,7 @@ export function ActivityTimeline({
             </Button>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {assignees.length > 0 ? (
+            {assignees.length > 0 && !hideAssignee && !isFieldReadOnly(activityFieldRights, 'assignee') ? (
               <Select
                 ariaLabel="Activity assignee"
                 value={newAssigneeId}
@@ -264,7 +287,7 @@ export function ActivityTimeline({
                 disabled={savingNew}
               />
             ) : null}
-            {newType !== 'note' ? (
+            {newType !== 'note' && !hideDueAt && !isFieldReadOnly(activityFieldRights, 'due_at') ? (
               <div className="flex items-center gap-2">
                 <label
                   htmlFor={`new-activity-due-${objectKey}-${recordId}`}
@@ -406,7 +429,7 @@ export function ActivityTimeline({
                         isTask && act.is_completed ? 'line-through opacity-70' : ''
                       }`}
                     >
-                      {act.summary}
+                      {act.summary ?? act.display_label}
                     </p>
 
                     {act.due_at || act.assignee?.email ? (
@@ -424,7 +447,7 @@ export function ActivityTimeline({
 
                     {(activityRights.canUpdate || activityRights.canDelete) ? (
                       <div className="flex flex-wrap items-center justify-end gap-1.5 pt-1">
-                        {isTask && activityRights.canUpdate ? (
+                        {isTask && activityRights.canUpdate && !hideCompleted && !isFieldReadOnly(activityFieldRights, 'is_completed') ? (
                           <Button
                             type="button"
                             variant="secondary"
