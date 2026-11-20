@@ -4,21 +4,14 @@ import { Card } from '../components/Card.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { RefreshButton } from '../components/RefreshButton.jsx'
 import { MiniDonutChart } from '../components/crm/SummaryMiniCharts.jsx'
-import { fetchDashboardSummary } from '../service/crmService.js'
+import { fetchDashboardSummary, getStageColor } from '../service/crmService.js'
 import { OBJECT_LABELS } from '../utils/catalog.js'
 import { formatDateTime, formatGhs } from '../utils/formatters.js'
-
-const STAGE_COLORS = {
-  New: '#64748b',
-  Qualified: '#3b82f6',
-  Proposal: '#6366f1',
-  Won: '#10b981',
-  Lost: '#f43f5e',
-}
 
 export function DashboardPane({
   workspace,
   user,
+  permissionsRevision = 0,
   activeTablesSummary,
   onSelectPane,
   onOpenRecord,
@@ -72,7 +65,7 @@ export function DashboardPane({
     return () => {
       cancelled = true
     }
-  }, [workspaceSlug, refreshTick, onSessionExpired])
+  }, [workspaceSlug, refreshTick, permissionsRevision, onSessionExpired])
 
   const countsByObject = dashboardData?.counts_by_object || {}
   const openCounts = dashboardData?.open_counts || {}
@@ -81,11 +74,17 @@ export function DashboardPane({
   const totalRecords = dashboardData?.total_records ?? 0
 
   const stageDonutItems = dealSummary
-    ? Object.entries(dealSummary.stage_counts || {}).map(([stage, count]) => ({
-        label: stage,
-        count,
-        color: STAGE_COLORS[stage] || '#3b82f6',
-      }))
+    ? Array.isArray(dealSummary.stages) && dealSummary.stages.length > 0
+      ? dealSummary.stages.map((stage) => ({
+          label: stage.name,
+          count: dealSummary.stage_counts?.[stage.name] ?? 0,
+          color: getStageColor(stage.tone, stage.name),
+        }))
+      : Object.entries(dealSummary.stage_counts || {}).map(([stage, count]) => ({
+          label: stage,
+          count,
+          color: getStageColor(dealSummary.stage_tones?.[stage], stage),
+        }))
     : []
 
   const objectCards = [
@@ -319,7 +318,7 @@ export function DashboardPane({
                     Pipeline Stage Mix
                   </h2>
                   <p className="text-xs text-sub">
-                    Active deals grouped across New, Qualified, Proposal, Won, and Lost.
+                    Active deals grouped across your workspace pipeline stages.
                   </p>
                 </div>
                 <Button

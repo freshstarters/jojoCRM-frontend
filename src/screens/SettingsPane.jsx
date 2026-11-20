@@ -6,19 +6,22 @@ import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
 import { SettingsPacksSection } from '../components/SettingsPacksSection.jsx'
 import { SettingsPeopleSection } from '../components/SettingsPeopleSection.jsx'
+import { SettingsPipelinesSection } from '../components/SettingsPipelinesSection.jsx'
 import { SettingsRolesSection } from '../components/SettingsRolesSection.jsx'
 import { SettingsWorkspaceSection } from '../components/SettingsWorkspaceSection.jsx'
 import { Subtabs } from '../components/Subtabs.jsx'
+import {
+  renamePasskeyCredential,
+  setAccountInitialPassword,
+} from '../service/crmService.js'
 import { apiDelete, apiGet, apiPatch, apiPost } from '../utils/api.js'
-import { SETTINGS_TABS } from '../utils/catalog.js'
+import { getSettingsTabs } from '../utils/catalog.js'
 import { getTimezoneOptions } from '../utils/timezones.js'
 import {
   createPasskeyCredential,
   formatWebAuthnError,
   isWebAuthnSupported,
 } from '../utils/webauthn.js'
-
-const VALID_SETTINGS_TAB_IDS = new Set(SETTINGS_TABS.map((tab) => tab.id))
 
 function formatTimestamp(isoString, timeZone) {
   if (!isoString) return 'Never used'
@@ -42,6 +45,7 @@ export function SettingsPane({
   workspace,
   user,
   permissions,
+  permissionsRevision = 0,
   activeTab: controlledTab,
   onTabChange,
   onWorkspaceUpdated,
@@ -49,10 +53,15 @@ export function SettingsPane({
   onAuditRecorded,
   onSessionExpired,
 }) {
+  const settingsTabs = useMemo(() => getSettingsTabs(workspace), [workspace])
+  const validTabIds = useMemo(
+    () => new Set(settingsTabs.map((tab) => tab.id)),
+    [settingsTabs],
+  )
   const [internalTab, setInternalTab] = useState('workspace')
-  const activeTab = VALID_SETTINGS_TAB_IDS.has(controlledTab)
+  const activeTab = validTabIds.has(controlledTab)
     ? controlledTab
-    : VALID_SETTINGS_TAB_IDS.has(internalTab)
+    : validTabIds.has(internalTab)
       ? internalTab
       : 'workspace'
 
@@ -83,6 +92,9 @@ export function SettingsPane({
   const [passkeyLabel, setPasskeyLabel] = useState('')
   const [registering, setRegistering] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
+  const [renamingPasskeyId, setRenamingPasskeyId] = useState(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const [savingPasskeyId, setSavingPasskeyId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionStatus, setActionStatus] = useState('')
 
@@ -179,7 +191,8 @@ export function SettingsPane({
     setPasswordError('')
     setPasswordStatus('')
 
-    if (!currentPassword) {
+    const hasExistingPassword = Boolean(methods?.has_password)
+    if (hasExistingPassword && !currentPassword) {
       setPasswordError('Enter your current password.')
       return
     }
@@ -194,23 +207,38 @@ export function SettingsPane({
 
     setChangingPassword(true)
     try {
-      const { response, data } = await apiPost('/api/v1/account/password/change/', {
-        current_password: currentPassword,
-        new_password: newPassword,
-      })
+      const { response, data } = hasExistingPassword
+        ? await apiPost('/api/v1/account/password/change/', {
+            current_password: currentPassword,
+            new_password: newPassword,
+          })
+        : await setAccountInitialPassword(newPassword)
       if (!response.ok) {
         if (response.status === 401) {
           onSessionExpired?.(data?.error || data?.detail)
           return
         }
-        setPasswordError(data?.error || 'Could not update password.')
+        setPasswordError(
+          data?.error ||
+            (hasExistingPassword
+              ? 'Could not update password.'
+              : 'Could not set initial password.'),
+        )
         return
       }
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setPasswordStatus(data?.message || 'Your password has been updated.')
+      setPasswordStatus(
+        data?.message ||
+          (hasExistingPassword
+            ? 'Your password has been updated.'
+            : 'Your password has been set.'),
+      )
       onAuditRecorded?.()
+      if (!hasExistingPassword) {
+        await fetchMethods()
+      }
     } catch {
       setPasswordError('Unable to reach the server. Please try again.')
     } finally {
@@ -306,6 +334,40 @@ export function SettingsPane({
     }
   }
 
+  async function handleSavePasskeyRename(event, passkeyId) {
+    event.preventDefault()
+    const trimmed = renameDraft.trim()
+    if (!trimmed) {
+      setActionError('Passkey label is required.')
+      return
+    }
+    setActionError('')
+    setActionStatus('')
+    setSavingPasskeyId(passkeyId)
+    try {
+      const { response, data } = await renamePasskeyCredential(passkeyId, trimmed)
+      if (!response.ok) {
+        if (response.status === 401) {
+          onSessionExpired?.(data?.error || data?.detail)
+          return
+        }
+        setActionError(data?.error || 'Could not rename passkey.')
+        return
+      }
+      setRenamingPasskeyId(null)
+      setRenameDraft('')
+      setActionStatus(data?.message || `Passkey renamed to "${trimmed}".`)
+      if (data?.changed) {
+        onAuditRecorded?.()
+      }
+      await fetchMethods()
+    } catch {
+      setActionError('Unable to reach the server. Please try again.')
+    } finally {
+      setSavingPasskeyId(null)
+    }
+  }
+
   async function handleDeletePasskey(passkeyId) {
     setActionError('')
     setActionStatus('')
@@ -354,7 +416,7 @@ export function SettingsPane({
       </div>
 
       <Subtabs
-        tabs={SETTINGS_TABS}
+        tabs={settingsTabs}
         activeId={activeTab}
         onChange={handleTabChange}
         ariaLabel="Settings sections"
@@ -457,7 +519,9 @@ export function SettingsPane({
                       Password
                     </h2>
                     <p className="text-xs text-sub mt-0.5">
-                      Update your password after verifying your current password. Your active session stays signed in.
+                      {methods?.has_password
+                        ? 'Update your password after verifying your current password. Your active session stays signed in.'
+                        : 'Set an initial password for email-and-password sign-in without leaving your signed-in session.'}
                     </p>
                   </div>
                   <span
@@ -469,12 +533,16 @@ export function SettingsPane({
                   </span>
                 </div>
 
-                {methods?.has_password ? (
-                  <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
-                    <FeedbackNotice message={passwordError} tone="danger" />
-                    <FeedbackNotice message={passwordStatus} tone="success" />
+                <form onSubmit={handleChangePassword} className="space-y-3 text-xs">
+                  <FeedbackNotice message={passwordError} tone="danger" />
+                  <FeedbackNotice message={passwordStatus} tone="success" />
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div
+                    className={`grid grid-cols-1 ${
+                      methods?.has_password ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+                    } gap-3`}
+                  >
+                    {methods?.has_password ? (
                       <div className="space-y-1.5">
                         <label
                           htmlFor="current-password-input"
@@ -494,66 +562,68 @@ export function SettingsPane({
                           disabled={changingPassword}
                         />
                       </div>
+                    ) : null}
 
-                      <div className="space-y-1.5">
-                        <label
-                          htmlFor="new-password-input"
-                          className="block font-medium text-main"
-                        >
-                          New password
-                        </label>
-                        <input
-                          id="new-password-input"
-                          type="password"
-                          autoComplete="new-password"
-                          required
-                          minLength={8}
-                          value={newPassword}
-                          onChange={(e) => setNewPassword(e.target.value)}
-                          placeholder="At least 8 characters"
-                          className="crm-input w-full px-3 py-2 text-sm"
-                          disabled={changingPassword}
-                        />
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <label
-                          htmlFor="confirm-new-password-input"
-                          className="block font-medium text-main"
-                        >
-                          Confirm new password
-                        </label>
-                        <input
-                          id="confirm-new-password-input"
-                          type="password"
-                          autoComplete="new-password"
-                          required
-                          minLength={8}
-                          value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
-                          placeholder="Repeat new password"
-                          className="crm-input w-full px-3 py-2 text-sm"
-                          disabled={changingPassword}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end">
-                      <Button
-                        type="submit"
-                        variant="primary"
-                        disabled={changingPassword}
-                        className="px-4 py-2 text-xs font-medium"
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="new-password-input"
+                        className="block font-medium text-main"
                       >
-                        {changingPassword ? 'Updating...' : 'Update password'}
-                      </Button>
+                        {methods?.has_password ? 'New password' : 'Password'}
+                      </label>
+                      <input
+                        id="new-password-input"
+                        type="password"
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        className="crm-input w-full px-3 py-2 text-sm"
+                        disabled={changingPassword}
+                      />
                     </div>
-                  </form>
-                ) : (
-                  <p className="text-xs text-sub">
-                    Password login is not configured on this account yet. Use Forgot Password from the sign-in screen if you want to add one.
-                  </p>
-                )}
+
+                    <div className="space-y-1.5">
+                      <label
+                        htmlFor="confirm-new-password-input"
+                        className="block font-medium text-main"
+                      >
+                        {methods?.has_password ? 'Confirm new password' : 'Confirm password'}
+                      </label>
+                      <input
+                        id="confirm-new-password-input"
+                        type="password"
+                        autoComplete="new-password"
+                        required
+                        minLength={8}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Repeat password"
+                        className="crm-input w-full px-3 py-2 text-sm"
+                        disabled={changingPassword}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={changingPassword}
+                      className="px-4 py-2 text-xs font-medium"
+                    >
+                      {changingPassword
+                        ? methods?.has_password
+                          ? 'Updating...'
+                          : 'Setting password...'
+                        : methods?.has_password
+                          ? 'Update password'
+                          : 'Set password'}
+                    </Button>
+                  </div>
+                </form>
               </Card>
 
               <FeedbackNotice message={actionError} tone="danger" />
@@ -729,29 +799,89 @@ export function SettingsPane({
               <p className="text-xs text-sub">No passkeys registered yet.</p>
             ) : (
               <div className="divide-y crm-border text-xs">
-                {passkeys.map((pk) => (
-                  <div
-                    key={pk.id}
-                    className="py-3 flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <div>
-                      <div className="font-medium text-main">{pk.name}</div>
-                      <div className="text-sub">
-                        Added {formatTimestamp(pk.created_at, userTimezone)} · Last used:{' '}
-                        {formatTimestamp(pk.last_used_at, userTimezone)}
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={deletingId === pk.id}
-                      onClick={() => handleDeletePasskey(pk.id)}
-                      className="px-2.5 py-1 text-xs"
+                {passkeys.map((pk) => {
+                  const isRenaming = renamingPasskeyId === pk.id
+                  const isSavingRename = savingPasskeyId === pk.id
+                  return (
+                    <div
+                      key={pk.id}
+                      className="py-3 flex flex-wrap items-center justify-between gap-3"
                     >
-                      {deletingId === pk.id ? 'Removing...' : 'Remove'}
-                    </Button>
-                  </div>
-                ))}
+                      {isRenaming ? (
+                        <form
+                          onSubmit={(e) => handleSavePasskeyRename(e, pk.id)}
+                          className="flex flex-1 flex-wrap items-center gap-2"
+                        >
+                          <input
+                            type="text"
+                            maxLength={100}
+                            required
+                            value={renameDraft}
+                            onChange={(e) => setRenameDraft(e.target.value)}
+                            aria-label={`Rename passkey ${pk.name}`}
+                            className="crm-input flex-1 min-w-[12rem] px-3 py-1.5 text-xs"
+                            disabled={isSavingRename}
+                          />
+                          <Button
+                            type="submit"
+                            variant="primary"
+                            disabled={isSavingRename}
+                            className="px-2.5 py-1 text-xs font-medium"
+                          >
+                            {isSavingRename ? 'Saving...' : 'Save'}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            disabled={isSavingRename}
+                            onClick={() => {
+                              setRenamingPasskeyId(null)
+                              setRenameDraft('')
+                            }}
+                            className="px-2.5 py-1 text-xs"
+                          >
+                            Cancel
+                          </Button>
+                        </form>
+                      ) : (
+                        <>
+                          <div>
+                            <div className="font-medium text-main">{pk.name}</div>
+                            <div className="text-sub">
+                              Added {formatTimestamp(pk.created_at, userTimezone)} · Last used:{' '}
+                              {formatTimestamp(pk.last_used_at, userTimezone)}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={deletingId === pk.id}
+                              onClick={() => {
+                                setActionError('')
+                                setActionStatus('')
+                                setRenamingPasskeyId(pk.id)
+                                setRenameDraft(pk.name || '')
+                              }}
+                              className="px-2.5 py-1 text-xs"
+                            >
+                              Rename
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              disabled={deletingId === pk.id}
+                              onClick={() => handleDeletePasskey(pk.id)}
+                              className="px-2.5 py-1 text-xs"
+                            >
+                              {deletingId === pk.id ? 'Removing...' : 'Remove'}
+                            </Button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
           </Card>
@@ -765,6 +895,7 @@ export function SettingsPane({
           workspace={workspace}
           user={user}
           permissions={permissions}
+          permissionsRevision={permissionsRevision}
           onAuditRecorded={onAuditRecorded}
           onSessionExpired={onSessionExpired}
         />
@@ -775,7 +906,17 @@ export function SettingsPane({
           workspace={workspace}
           workspaceSlug={workspace?.slug}
           permissions={permissions}
+          permissionsRevision={permissionsRevision}
           onWorkspaceUpdated={onWorkspaceUpdated}
+          onAuditRecorded={onAuditRecorded}
+          onSessionExpired={onSessionExpired}
+        />
+      )}
+
+      {activeTab === 'pipelines' && (
+        <SettingsPipelinesSection
+          workspace={workspace}
+          permissions={permissions}
           onAuditRecorded={onAuditRecorded}
           onSessionExpired={onSessionExpired}
         />

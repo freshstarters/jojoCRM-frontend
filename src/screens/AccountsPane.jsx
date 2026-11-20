@@ -4,12 +4,23 @@ import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
+import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import {
+  RecordSharingControl,
+  SharingBadge,
+} from '../components/crm/RecordSharingControl.jsx'
+import { VISIBILITY_FILTER_OPTIONS } from '../utils/crmFormOptions.js'
 import {
   HorizontalBarChart,
   SummaryChartCard,
 } from '../components/crm/SummaryMiniCharts.jsx'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
+import {
+  filterWritablePayload,
+  isFieldHidden,
+  isFieldReadOnly,
+} from '../service/crmService.js'
 
 const EMPTY_FORM = {
   name: '',
@@ -17,12 +28,15 @@ const EMPTY_FORM = {
   phone: '',
   email: '',
   notes: '',
+  visibility: 'workspace',
+  shared_role_id: '',
 }
 
 export function AccountsPane({
   workspace,
   user,
   permissions,
+  permissionsRevision = 0,
   initialInspectRequest = null,
   onInspectRequestConsumed,
   onOpenLinkedRecord,
@@ -37,12 +51,20 @@ export function AccountsPane({
     workspaceSlug: workspace?.slug,
     objectKey: 'account',
     permissions,
+    permissionsRevision,
     initialInspectRequest,
     onInspectRequestConsumed,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
   })
+
+  const fr = pane.fieldRights
+  const hideCity = isFieldHidden(fr, 'city')
+  const hidePhone = isFieldHidden(fr, 'phone')
+  const hideEmail = isFieldHidden(fr, 'email')
+  const hideNotes = isFieldHidden(fr, 'notes')
+  const hideName = isFieldHidden(fr, 'name')
 
   const cityChartItems = useMemo(() => {
     const raw = pane.summary?.city_counts
@@ -78,7 +100,20 @@ export function AccountsPane({
     phone: active?.phone || '',
     email: active?.email || '',
     notes: active?.notes || '',
+    visibility: active?.visibility || 'workspace',
+    shared_role_id: active?.shared_role_id ? String(active.shared_role_id) : '',
   }
+
+  const columns = useMemo(() => {
+    const cols = [{ key: 'name', label: 'Company' }]
+    if (!hideCity) cols.push({ key: 'city', label: 'City' })
+    if (!hidePhone) cols.push({ key: 'phone', label: 'Phone' })
+    if (!hideEmail) cols.push({ key: 'email', label: 'Email' })
+    cols.push({ key: 'contacts', label: contactPlural })
+    cols.push({ key: 'sharing', label: 'Sharing' })
+    cols.push({ key: 'action', label: 'Action', align: 'right' })
+    return cols
+  }, [hideCity, hidePhone, hideEmail, contactPlural])
 
   function openCreateModal() {
     setCreateForm(EMPTY_FORM)
@@ -88,18 +123,32 @@ export function AccountsPane({
 
   async function handleCreateSubmit(event) {
     event.preventDefault()
-    if (!createForm.name.trim()) {
+    if (!hideName && !isFieldReadOnly(fr, 'name') && !createForm.name.trim()) {
       setCreateError('Company name is required.')
+      return
+    }
+    if (createForm.visibility === 'role' && !createForm.shared_role_id) {
+      setCreateError('Select a role to share this account with.')
       return
     }
     setCreateError('')
     setCreating(true)
+    const fieldPayload = filterWritablePayload(
+      {
+        name: createForm.name.trim(),
+        city: createForm.city.trim(),
+        phone: createForm.phone.trim(),
+        email: createForm.email.trim(),
+        notes: createForm.notes,
+      },
+      fr,
+    )
     const res = await pane.createRecord({
-      name: createForm.name.trim(),
-      city: createForm.city.trim(),
-      phone: createForm.phone.trim(),
-      email: createForm.email.trim(),
-      notes: createForm.notes,
+      ...fieldPayload,
+      visibility: createForm.visibility,
+      ...(createForm.visibility === 'role'
+        ? { shared_role_id: Number(createForm.shared_role_id) }
+        : {}),
     })
     setCreating(false)
     if (!res.ok) {
@@ -110,12 +159,28 @@ export function AccountsPane({
   }
 
   async function handleSaveInspector() {
+    const fieldPayload = filterWritablePayload(
+      {
+        name: formValues.name.trim(),
+        city: formValues.city.trim(),
+        phone: formValues.phone.trim(),
+        email: formValues.email.trim(),
+        notes: formValues.notes,
+      },
+      fr,
+    )
+    const sharingPayload = active?.can_manage_sharing
+      ? {
+          visibility: formValues.visibility,
+          shared_role_id:
+            formValues.visibility === 'role' && formValues.shared_role_id
+              ? Number(formValues.shared_role_id)
+              : null,
+        }
+      : {}
     const ok = await pane.saveInspectorRecord({
-      name: formValues.name.trim(),
-      city: formValues.city.trim(),
-      phone: formValues.phone.trim(),
-      email: formValues.email.trim(),
-      notes: formValues.notes,
+      ...fieldPayload,
+      ...sharingPayload,
     })
     if (ok) {
       setDraft(null)
@@ -144,44 +209,56 @@ export function AccountsPane({
             value: pane.totalCount,
             caption: 'Matching current filter',
           },
-          {
-            label: 'Cities covered',
-            value: (pane.summary?.cities || []).length,
-            caption: 'Distinct locations',
-          },
+          ...(!hideCity
+            ? [
+                {
+                  label: 'Cities covered',
+                  value: (pane.summary?.cities || []).length,
+                  caption: 'Distinct locations',
+                },
+              ]
+            : []),
         ]}
         statsAddon={
-          <SummaryChartCard title="Companies by city" subtitle="Filtered distribution">
-            <HorizontalBarChart items={cityChartItems} emptyLabel="No city data yet" />
-          </SummaryChartCard>
+          !hideCity ? (
+            <SummaryChartCard title="Companies by city" subtitle="Filtered distribution">
+              <HorizontalBarChart items={cityChartItems} emptyLabel="No city data yet" />
+            </SummaryChartCard>
+          ) : null
         }
         toolbarCaption={`Open a row to update details, inspect linked ${contactPlural.toLowerCase()}, or log activities.`}
         searchValue={pane.search}
         onSearchChange={pane.setSearch}
         searchPlaceholder="Search accounts..."
         filters={
-          <div className="w-40">
-            <Select
-              id="account-city-filter"
-              ariaLabel="Filter accounts by city"
-              value={pane.filters.city || ''}
-              onChange={(val) => pane.updateFilter('city', val)}
-              options={cityOptions}
-            />
-          </div>
+          <>
+            {!hideCity ? (
+              <div className="w-40">
+                <Select
+                  id="account-city-filter"
+                  ariaLabel="Filter accounts by city"
+                  value={pane.filters.city || ''}
+                  onChange={(val) => pane.updateFilter('city', val)}
+                  options={cityOptions}
+                />
+              </div>
+            ) : null}
+            <div className="w-40">
+              <Select
+                id="account-visibility-filter"
+                ariaLabel="Filter accounts by sharing"
+                value={pane.filters.visibility || ''}
+                onChange={(val) => pane.updateFilter('visibility', val)}
+                options={VISIBILITY_FILTER_OPTIONS}
+              />
+            </div>
+          </>
         }
         loading={pane.loading}
         error={pane.loadError}
         records={pane.records}
         emptyMessage="No accounts yet."
-        columns={[
-          { key: 'name', label: 'Company' },
-          { key: 'city', label: 'City' },
-          { key: 'phone', label: 'Phone' },
-          { key: 'email', label: 'Email' },
-          { key: 'contacts', label: contactPlural },
-          { key: 'action', label: 'Action', align: 'right' },
-        ]}
+        columns={columns}
         renderRow={(acc) => (
           <tr
             key={acc.id}
@@ -189,18 +266,27 @@ export function AccountsPane({
             onClick={() => handleInspect(acc.id)}
           >
             <td className="py-3 px-4 font-medium text-main">
-              <div>{acc.name}</div>
+              <div>{acc.name ?? acc.display_label}</div>
               {acc.source_lead?.record_code ? (
                 <div className="text-[11px] text-sub font-normal num-tabular">
                   From {acc.source_lead.record_code}
                 </div>
               ) : null}
             </td>
-            <td className="py-3 px-4 text-sub">{acc.city || 'Not set'}</td>
-            <td className="py-3 px-4 text-sub num-tabular">{acc.phone || 'Not set'}</td>
-            <td className="py-3 px-4 text-sub break-all">{acc.email || 'Not set'}</td>
+            {!hideCity ? (
+              <td className="py-3 px-4 text-sub">{acc.city || 'Not set'}</td>
+            ) : null}
+            {!hidePhone ? (
+              <td className="py-3 px-4 text-sub num-tabular">{acc.phone || 'Not set'}</td>
+            ) : null}
+            {!hideEmail ? (
+              <td className="py-3 px-4 text-sub break-all">{acc.email || 'Not set'}</td>
+            ) : null}
             <td className="py-3 px-4 num-tabular text-main">
               {acc.contacts_count ?? 0}
+            </td>
+            <td className="py-3 px-4">
+              <SharingBadge record={acc} />
             </td>
             <td
               className="py-3 px-4 text-right"
@@ -259,78 +345,88 @@ export function AccountsPane({
       >
         <form id="create-account-form" onSubmit={handleCreateSubmit} className="space-y-3 text-xs">
           <FeedbackNotice tone="danger" message={createError} />
-          <div>
-            <label htmlFor="new-account-name" className="block font-medium text-body mb-1">
-              Company name
-            </label>
-            <input
-              id="new-account-name"
-              type="text"
-              required
-              value={createForm.name}
-              onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="e.g. Meridian Port Services"
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label htmlFor="new-account-city" className="block font-medium text-body mb-1">
-                City
-              </label>
+          {!hideName ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-account-name" label="Company name" readOnly={isFieldReadOnly(fr, 'name')} />
               <input
-                id="new-account-city"
+                id="new-account-name"
                 type="text"
-                value={createForm.city}
-                onChange={(e) => setCreateForm((f) => ({ ...f, city: e.target.value }))}
-                placeholder="Accra"
-                disabled={creating}
+                required={!isFieldReadOnly(fr, 'name')}
+                value={createForm.name}
+                onChange={(e) => setCreateForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="e.g. Meridian Port Services"
+                disabled={creating || isFieldReadOnly(fr, 'name')}
                 className="crm-input w-full px-3 py-2"
               />
             </div>
-            <div>
-              <label htmlFor="new-account-phone" className="block font-medium text-body mb-1">
-                Phone
-              </label>
+          ) : null}
+          {!hideCity || !hidePhone ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {!hideCity ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-account-city" label="City" readOnly={isFieldReadOnly(fr, 'city')} />
+                  <input
+                    id="new-account-city"
+                    type="text"
+                    value={createForm.city}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, city: e.target.value }))}
+                    placeholder="Accra"
+                    disabled={creating || isFieldReadOnly(fr, 'city')}
+                    className="crm-input w-full px-3 py-2"
+                  />
+                </div>
+              ) : null}
+              {!hidePhone ? (
+                <div className="space-y-1">
+                  <FieldLabel htmlFor="new-account-phone" label="Phone" readOnly={isFieldReadOnly(fr, 'phone')} />
+                  <input
+                    id="new-account-phone"
+                    type="text"
+                    value={createForm.phone}
+                    onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
+                    placeholder="+233 30 000 0000"
+                    disabled={creating || isFieldReadOnly(fr, 'phone')}
+                    className="crm-input w-full px-3 py-2"
+                  />
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {!hideEmail ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-account-email" label="Email" readOnly={isFieldReadOnly(fr, 'email')} />
               <input
-                id="new-account-phone"
-                type="text"
-                value={createForm.phone}
-                onChange={(e) => setCreateForm((f) => ({ ...f, phone: e.target.value }))}
-                placeholder="+233 30 000 0000"
-                disabled={creating}
+                id="new-account-email"
+                type="email"
+                value={createForm.email}
+                onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="ops@company.com.gh"
+                disabled={creating || isFieldReadOnly(fr, 'email')}
                 className="crm-input w-full px-3 py-2"
               />
             </div>
-          </div>
-          <div>
-            <label htmlFor="new-account-email" className="block font-medium text-body mb-1">
-              Email
-            </label>
-            <input
-              id="new-account-email"
-              type="email"
-              value={createForm.email}
-              onChange={(e) => setCreateForm((f) => ({ ...f, email: e.target.value }))}
-              placeholder="ops@company.com.gh"
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
-          <div>
-            <label htmlFor="new-account-notes" className="block font-medium text-body mb-1">
-              Notes
-            </label>
-            <textarea
-              id="new-account-notes"
-              rows={2}
-              value={createForm.notes}
-              onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
-              disabled={creating}
-              className="crm-input w-full px-3 py-2"
-            />
-          </div>
+          ) : null}
+          {!hideNotes ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor="new-account-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+              <textarea
+                id="new-account-notes"
+                rows={2}
+                value={createForm.notes}
+                onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))}
+                disabled={creating || isFieldReadOnly(fr, 'notes')}
+                className="crm-input w-full px-3 py-2"
+              />
+            </div>
+          ) : null}
+          <RecordSharingControl
+            idPrefix="new-account-sharing"
+            visibility={createForm.visibility}
+            sharedRoleId={createForm.shared_role_id}
+            roles={pane.optionsData?.roles || []}
+            disabled={creating}
+            onChange={(next) => setCreateForm((f) => ({ ...f, ...next }))}
+          />
         </form>
       </Modal>
 
@@ -345,6 +441,7 @@ export function AccountsPane({
         contactLabel={contactLabel}
         contactPluralLabel={contactPlural}
         assignees={pane.optionsData?.assignees || []}
+        roles={pane.optionsData?.roles || []}
         workspaceSlug={workspace?.slug}
         userTimezone={user?.timezone || 'Africa/Accra'}
         permissions={permissions}
@@ -356,80 +453,87 @@ export function AccountsPane({
         notice={pane.actionNotice}
         canUpdate={pane.rights.canUpdate}
         canDelete={pane.rights.canDelete}
+        sharingValue={{
+          visibility: formValues.visibility,
+          shared_role_id: formValues.shared_role_id,
+        }}
+        onSharingChange={(next) => setDraft({ ...formValues, ...next })}
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
-        badgeText={active?.city || ''}
+        badgeText={!hideCity ? active?.city || '' : ''}
       >
-        <div>
-          <label htmlFor="acc-insp-name" className="block font-medium text-body mb-1">
-            Company name
-          </label>
-          <input
-            id="acc-insp-name"
-            type="text"
-            value={formValues.name}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => setDraft({ ...formValues, name: e.target.value })}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label htmlFor="acc-insp-city" className="block font-medium text-body mb-1">
-              City
-            </label>
+        {!hideName ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="acc-insp-name" label="Company name" readOnly={isFieldReadOnly(fr, 'name')} />
             <input
-              id="acc-insp-city"
+              id="acc-insp-name"
               type="text"
-              value={formValues.city}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-              onChange={(e) => setDraft({ ...formValues, city: e.target.value })}
+              value={formValues.name}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'name')}
+              onChange={(e) => setDraft({ ...formValues, name: e.target.value })}
               className="crm-input w-full px-3 py-2"
             />
           </div>
-          <div>
-            <label htmlFor="acc-insp-phone" className="block font-medium text-body mb-1">
-              Phone
-            </label>
+        ) : null}
+        {!hideCity || !hidePhone ? (
+          <div className="grid grid-cols-2 gap-3">
+            {!hideCity ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="acc-insp-city" label="City" readOnly={isFieldReadOnly(fr, 'city')} />
+                <input
+                  id="acc-insp-city"
+                  type="text"
+                  value={formValues.city}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'city')}
+                  onChange={(e) => setDraft({ ...formValues, city: e.target.value })}
+                  className="crm-input w-full px-3 py-2"
+                />
+              </div>
+            ) : null}
+            {!hidePhone ? (
+              <div className="space-y-1">
+                <FieldLabel htmlFor="acc-insp-phone" label="Phone" readOnly={isFieldReadOnly(fr, 'phone')} />
+                <input
+                  id="acc-insp-phone"
+                  type="text"
+                  value={formValues.phone}
+                  disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'phone')}
+                  onChange={(e) => setDraft({ ...formValues, phone: e.target.value })}
+                  className="crm-input w-full px-3 py-2"
+                />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {!hideEmail ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="acc-insp-email" label="Email" readOnly={isFieldReadOnly(fr, 'email')} />
             <input
-              id="acc-insp-phone"
-              type="text"
-              value={formValues.phone}
-              disabled={!pane.rights.canUpdate || pane.savingInspector}
-              onChange={(e) => setDraft({ ...formValues, phone: e.target.value })}
+              id="acc-insp-email"
+              type="email"
+              value={formValues.email}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'email')}
+              onChange={(e) => setDraft({ ...formValues, email: e.target.value })}
               className="crm-input w-full px-3 py-2"
             />
           </div>
-        </div>
-        <div>
-          <label htmlFor="acc-insp-email" className="block font-medium text-body mb-1">
-            Email
-          </label>
-          <input
-            id="acc-insp-email"
-            type="email"
-            value={formValues.email}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => setDraft({ ...formValues, email: e.target.value })}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
-        <div>
-          <label htmlFor="acc-insp-notes" className="block font-medium text-body mb-1">
-            Notes
-          </label>
-          <textarea
-            id="acc-insp-notes"
-            rows={3}
-            value={formValues.notes}
-            disabled={!pane.rights.canUpdate || pane.savingInspector}
-            onChange={(e) => setDraft({ ...formValues, notes: e.target.value })}
-            className="crm-input w-full px-3 py-2"
-          />
-        </div>
+        ) : null}
+        {!hideNotes ? (
+          <div className="space-y-1">
+            <FieldLabel htmlFor="acc-insp-notes" label="Notes" readOnly={isFieldReadOnly(fr, 'notes')} />
+            <textarea
+              id="acc-insp-notes"
+              rows={3}
+              value={formValues.notes}
+              disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'notes')}
+              onChange={(e) => setDraft({ ...formValues, notes: e.target.value })}
+              className="crm-input w-full px-3 py-2"
+            />
+          </div>
+        ) : null}
       </RecordInspectorDrawer>
     </>
   )
