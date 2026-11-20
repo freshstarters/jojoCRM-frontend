@@ -11,6 +11,7 @@ import { DealKanbanBoard } from '../components/crm/DealKanbanBoard.jsx'
 import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { PipelineStageDistribution } from '../components/crm/PipelineStageDistribution.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import { RecordRelationPicker } from '../components/crm/RecordRelationPicker.jsx'
 import {
   RecordSharingControl,
   SharingBadge,
@@ -131,8 +132,9 @@ export function DealsPane({
   activeSubtab = 'kanban',
   onSubtabChange,
   onOpenPipelineSettings,
-  initialInspectRequest = null,
-  onInspectRequestConsumed,
+  urlInspectRecordId = null,
+  onInspectRecord,
+  onCloseInspect,
   onOpenLinkedRecord,
   onAuditRecorded,
   onSessionExpired,
@@ -151,8 +153,9 @@ export function DealsPane({
     permissions,
     permissionsRevision,
     enabled: viewMode === 'list',
-    initialInspectRequest,
-    onInspectRequestConsumed,
+    urlInspectRecordId,
+    onInspectRecord,
+    onCloseInspect,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
@@ -290,42 +293,25 @@ export function DealsPane({
 
   const defaultStageName = activeStages[0]?.name || 'New'
 
-  const accountOptions = useMemo(
-    () => [
-      { value: '', label: 'No Account' },
-      ...(pane.optionsData.accounts || []).map((acc) => ({
-        value: String(acc.id),
-        label: acc.name,
-      })),
-    ],
-    [pane.optionsData.accounts],
-  )
+  const [pickedAccountsById, setPickedAccountsById] = useState({})
+  const [pickedContactsById, setPickedContactsById] = useState({})
 
   const allContacts = useMemo(
     () => pane.optionsData.contacts || [],
     [pane.optionsData.contacts],
   )
 
-  function getFilteredContactOptions(selectedAccountId) {
-    const filtered = selectedAccountId
-      ? allContacts.filter(
-          (con) => !con.account_id || String(con.account_id) === selectedAccountId,
-        )
-      : allContacts
-    return [
-      { value: '', label: `No ${contactLabel}` },
-      ...filtered.map((con) => ({
-        value: String(con.id),
-        label: con.account_name ? `${con.name} (${con.account_name})` : con.name,
-      })),
-    ]
-  }
-
-  function applyAccountContactChange(currentForm, field, nextVal) {
+  function applyAccountContactChange(currentForm, field, nextVal, pickedRecord = null) {
     if (field === 'account_id') {
+      if (pickedRecord?.id) {
+        setPickedAccountsById((prev) => ({ ...prev, [String(pickedRecord.id)]: pickedRecord }))
+      }
       let nextContactId = currentForm.contact_id
       if (nextVal && nextContactId) {
-        const chosen = allContacts.find((c) => String(c.id) === nextContactId)
+        const chosen =
+          pickedContactsById[nextContactId] ||
+          (active?.contact && String(active.contact.id) === nextContactId ? active.contact : null) ||
+          allContacts.find((c) => String(c.id) === nextContactId)
         if (chosen?.account_id && String(chosen.account_id) !== nextVal) {
           nextContactId = ''
         }
@@ -333,11 +319,21 @@ export function DealsPane({
       return { ...currentForm, account_id: nextVal, contact_id: nextContactId }
     }
     if (field === 'contact_id') {
+      if (pickedRecord?.id) {
+        setPickedContactsById((prev) => ({ ...prev, [String(pickedRecord.id)]: pickedRecord }))
+      }
       let nextAccountId = currentForm.account_id
       if (nextVal && !nextAccountId) {
-        const chosen = allContacts.find((c) => String(c.id) === nextVal)
+        const chosen =
+          pickedRecord ||
+          pickedContactsById[nextVal] ||
+          allContacts.find((c) => String(c.id) === nextVal)
         if (chosen?.account_id) {
           nextAccountId = String(chosen.account_id)
+          const linkedAccount = chosen.account || (chosen.account_name ? { id: chosen.account_id, name: chosen.account_name } : null)
+          if (linkedAccount?.id) {
+            setPickedAccountsById((prev) => ({ ...prev, [String(linkedAccount.id)]: linkedAccount }))
+          }
         }
       }
       return { ...currentForm, account_id: nextAccountId, contact_id: nextVal }
@@ -506,6 +502,7 @@ export function DealsPane({
 
       setMoveNotice(`Moved "${deal.title ?? deal.display_label}" from ${oldStageName} to ${targetStageName}.`)
       onAuditRecorded?.()
+      pane.bumpRecordAuditRevision()
       reloadBoard()
       pane.reload()
       if (pane.activeRecord?.id === deal.id) {
@@ -834,30 +831,55 @@ export function DealsPane({
               {!hideAccount ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-deal-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
-                  <Select
+                  <RecordRelationPicker
                     id="new-deal-account"
                     ariaLabel="Account"
+                    workspaceSlug={workspaceSlug}
+                    objectKey="account"
+                    objectPluralLabel="Accounts"
                     value={createForm.account_id}
-                    onChange={(val) =>
-                      setCreateForm((f) => applyAccountContactChange(f, 'account_id', val))
+                    selectedRecord={pickedAccountsById[createForm.account_id] || null}
+                    fallbackOptions={pane.optionsData.accounts || []}
+                    emptyLabel="No Account"
+                    searchPlaceholder="Search Accounts..."
+                    getOptionMeta={(acc) => acc.city || acc.email || ''}
+                    onChange={(val, rec) =>
+                      setCreateForm((f) => applyAccountContactChange(f, 'account_id', val, rec))
                     }
-                    options={accountOptions}
                     disabled={creating || isFieldReadOnly(fr, 'account')}
+                    onSessionExpired={onSessionExpired}
                   />
                 </div>
               ) : null}
               {!hideContact ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-deal-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
-                  <Select
+                  <RecordRelationPicker
                     id="new-deal-contact"
                     ariaLabel={contactLabel}
+                    workspaceSlug={workspaceSlug}
+                    objectKey="contact"
+                    objectPluralLabel={contactPlural}
                     value={createForm.contact_id}
-                    onChange={(val) =>
-                      setCreateForm((f) => applyAccountContactChange(f, 'contact_id', val))
+                    selectedRecord={pickedContactsById[createForm.contact_id] || null}
+                    fallbackOptions={allContacts}
+                    queryParams={
+                      createForm.account_id
+                        ? { compatible_account_id: createForm.account_id }
+                        : {}
                     }
-                    options={getFilteredContactOptions(createForm.account_id)}
+                    emptyLabel={`No ${contactLabel}`}
+                    searchPlaceholder={`Search ${contactPlural}...`}
+                    getOptionLabel={(con) => {
+                      const accName = con.account?.name || con.account_name
+                      return accName ? `${con.name || con.display_label} (${accName})` : con.name || con.display_label
+                    }}
+                    getOptionMeta={(con) => con.email || con.phone || ''}
+                    onChange={(val, rec) =>
+                      setCreateForm((f) => applyAccountContactChange(f, 'contact_id', val, rec))
+                    }
                     disabled={creating || isFieldReadOnly(fr, 'contact')}
+                    onSessionExpired={onSessionExpired}
                   />
                 </div>
               ) : null}
@@ -1010,6 +1032,7 @@ export function DealsPane({
         onSave={handleSaveInspector}
         onDelete={handleDeleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
+        auditRefreshKey={pane.recordAuditRevision}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
         badgeText={!hideStage ? active?.stage || '' : ''}
@@ -1037,30 +1060,59 @@ export function DealsPane({
             {!hideAccount ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="deal-insp-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
-                <Select
+                <RecordRelationPicker
                   id="deal-insp-account"
                   ariaLabel="Account"
+                  workspaceSlug={workspaceSlug}
+                  objectKey="account"
+                  objectPluralLabel="Accounts"
                   value={formValues.account_id}
-                  onChange={(val) =>
-                    setDraft(applyAccountContactChange(formValues, 'account_id', val))
+                  selectedRecord={
+                    pickedAccountsById[formValues.account_id] || active?.account || null
                   }
-                  options={accountOptions}
+                  fallbackOptions={pane.optionsData.accounts || []}
+                  emptyLabel="No Account"
+                  searchPlaceholder="Search Accounts..."
+                  getOptionMeta={(acc) => acc.city || acc.email || ''}
+                  onChange={(val, rec) =>
+                    setDraft(applyAccountContactChange(formValues, 'account_id', val, rec))
+                  }
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'account')}
+                  onSessionExpired={onSessionExpired}
                 />
               </div>
             ) : null}
             {!hideContact ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="deal-insp-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
-                <Select
+                <RecordRelationPicker
                   id="deal-insp-contact"
                   ariaLabel={contactLabel}
+                  workspaceSlug={workspaceSlug}
+                  objectKey="contact"
+                  objectPluralLabel={contactPlural}
                   value={formValues.contact_id}
-                  onChange={(val) =>
-                    setDraft(applyAccountContactChange(formValues, 'contact_id', val))
+                  selectedRecord={
+                    pickedContactsById[formValues.contact_id] || active?.contact || null
                   }
-                  options={getFilteredContactOptions(formValues.account_id)}
+                  fallbackOptions={allContacts}
+                  queryParams={
+                    formValues.account_id
+                      ? { compatible_account_id: formValues.account_id }
+                      : {}
+                  }
+                  emptyLabel={`No ${contactLabel}`}
+                  searchPlaceholder={`Search ${contactPlural}...`}
+                  getOptionLabel={(con) => {
+                    const accName = con.account?.name || con.account_name
+                    return accName ? `${con.name || con.display_label} (${accName})` : con.name || con.display_label
+                  }}
+                  getOptionMeta={(con) => con.email || con.phone || ''}
+                  onChange={(val, rec) =>
+                    setDraft(applyAccountContactChange(formValues, 'contact_id', val, rec))
+                  }
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'contact')}
+                  onSessionExpired={onSessionExpired}
                 />
               </div>
             ) : null}

@@ -37,8 +37,9 @@ export function AccountsPane({
   user,
   permissions,
   permissionsRevision = 0,
-  initialInspectRequest = null,
-  onInspectRequestConsumed,
+  urlInspectRecordId = null,
+  onInspectRecord,
+  onCloseInspect,
   onOpenLinkedRecord,
   onAuditRecorded,
   onSessionExpired,
@@ -52,8 +53,9 @@ export function AccountsPane({
     objectKey: 'account',
     permissions,
     permissionsRevision,
-    initialInspectRequest,
-    onInspectRequestConsumed,
+    urlInspectRecordId,
+    onInspectRecord,
+    onCloseInspect,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
@@ -461,6 +463,7 @@ export function AccountsPane({
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
+        auditRefreshKey={pane.recordAuditRevision}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
         badgeText={!hideCity ? active?.city || '' : ''}

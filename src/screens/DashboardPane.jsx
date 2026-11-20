@@ -124,6 +124,15 @@ export function DashboardPane({
           : undefined,
     },
     {
+      key: 'visit',
+      label: 'Visits',
+      paneId: 'visits',
+      caption:
+        openCounts.visit_with_follow_up !== undefined
+          ? `${openCounts.visit_with_follow_up} with follow-up`
+          : undefined,
+    },
+    {
       key: 'ticket',
       label: 'Support Tickets',
       paneId: 'tickets',

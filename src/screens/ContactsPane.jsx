@@ -6,6 +6,7 @@ import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
 import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import { RecordRelationPicker } from '../components/crm/RecordRelationPicker.jsx'
 import {
   RecordSharingControl,
   SharingBadge,
@@ -18,6 +19,7 @@ import {
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
 import {
   filterWritablePayload,
+  getObjectRights,
   isFieldHidden,
   isFieldReadOnly,
 } from '../service/crmService.js'
@@ -52,23 +54,32 @@ export function ContactsPane({
   user,
   permissions,
   permissionsRevision = 0,
-  initialInspectRequest = null,
-  onInspectRequestConsumed,
+  urlInspectRecordId = null,
+  onInspectRecord,
+  onCloseInspect,
   onOpenLinkedRecord,
+  onRecordVisit,
   onAuditRecorded,
   onSessionExpired,
 }) {
   const contactLabel = workspace?.contact_label || 'Contact'
   const contactPlural = workspace?.contact_plural_label || 'Contacts'
   const roleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
+  const canRecordVisit = Boolean(
+    onRecordVisit &&
+      Array.isArray(workspace?.enabled_object_keys) &&
+      workspace.enabled_object_keys.includes('visit') &&
+      getObjectRights(permissions, 'visit').canCreate,
+  )
 
   const pane = useCrmRecordsPane({
     workspaceSlug: workspace?.slug,
     objectKey: 'contact',
     permissions,
     permissionsRevision,
-    initialInspectRequest,
-    onInspectRequestConsumed,
+    urlInspectRecordId,
+    onInspectRecord,
+    onCloseInspect,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
@@ -91,28 +102,6 @@ export function ContactsPane({
   const [createError, setCreateError] = useState('')
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState(null)
-
-  const accountFilterOptions = useMemo(
-    () => [
-      { value: '', label: 'All accounts' },
-      ...(pane.optionsData.accounts || []).map((acc) => ({
-        value: String(acc.id),
-        label: acc.name,
-      })),
-    ],
-    [pane.optionsData.accounts],
-  )
-
-  const accountSelectOptions = useMemo(
-    () => [
-      { value: '', label: 'Standalone (no Account)' },
-      ...(pane.optionsData.accounts || []).map((acc) => ({
-        value: String(acc.id),
-        label: acc.name,
-      })),
-    ],
-    [pane.optionsData.accounts],
-  )
 
   const active = pane.activeRecord
   const formValues = draft ?? {
@@ -271,13 +260,20 @@ export function ContactsPane({
         filters={
           <>
             {!hideAccount ? (
-              <div className="w-44">
-                <Select
+              <div className="w-48">
+                <RecordRelationPicker
                   id="contact-account-filter"
                   ariaLabel={`Filter ${contactPlural.toLowerCase()} by account`}
+                  workspaceSlug={workspace?.slug}
+                  objectKey="account"
+                  objectPluralLabel="Accounts"
                   value={pane.filters.account_id || ''}
+                  fallbackOptions={pane.optionsData.accounts || []}
+                  emptyLabel="All accounts"
+                  searchPlaceholder="Search Accounts..."
+                  getOptionMeta={(acc) => acc.city || acc.email || ''}
                   onChange={(val) => pane.updateFilter('account_id', val)}
-                  options={accountFilterOptions}
+                  onSessionExpired={onSessionExpired}
                 />
               </div>
             ) : null}
@@ -444,13 +440,20 @@ export function ContactsPane({
           {!hideAccount ? (
             <div className="space-y-1">
               <FieldLabel htmlFor="new-contact-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
-              <Select
+              <RecordRelationPicker
                 id="new-contact-account"
                 ariaLabel="Account"
+                workspaceSlug={workspace?.slug}
+                objectKey="account"
+                objectPluralLabel="Accounts"
                 value={createForm.account_id}
+                fallbackOptions={pane.optionsData.accounts || []}
+                emptyLabel="Standalone (no Account)"
+                searchPlaceholder="Search Accounts..."
+                getOptionMeta={(acc) => acc.city || acc.email || ''}
                 onChange={(val) => setCreateForm((f) => ({ ...f, account_id: val }))}
-                options={accountSelectOptions}
                 disabled={creating || isFieldReadOnly(fr, 'account')}
+                onSessionExpired={onSessionExpired}
               />
             </div>
           ) : null}
@@ -558,9 +561,33 @@ export function ContactsPane({
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
+        auditRefreshKey={pane.recordAuditRevision}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
         badgeText={!hideAccount ? active?.account?.name || 'Standalone' : ''}
+        headerActions={
+          canRecordVisit && active ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                onRecordVisit({
+                  contact_id: active.id,
+                  contact: {
+                    id: active.id,
+                    name: active.name || active.display_label,
+                    email: active.email || '',
+                    phone: active.phone || '',
+                    account: active.account || null,
+                  },
+                })
+              }
+              className="px-2.5 py-1 text-[11px] font-medium"
+            >
+              Record Visit
+            </Button>
+          ) : null
+        }
       >
         {!hideName || !hideTitle ? (
           <div className="grid grid-cols-2 gap-3">
@@ -596,13 +623,21 @@ export function ContactsPane({
         {!hideAccount ? (
           <div className="space-y-1">
             <FieldLabel htmlFor="con-insp-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
-            <Select
+            <RecordRelationPicker
               id="con-insp-account"
               ariaLabel="Account"
+              workspaceSlug={workspace?.slug}
+              objectKey="account"
+              objectPluralLabel="Accounts"
               value={formValues.account_id}
+              selectedRecord={active?.account || null}
+              fallbackOptions={pane.optionsData.accounts || []}
+              emptyLabel="Standalone (no Account)"
+              searchPlaceholder="Search Accounts..."
+              getOptionMeta={(acc) => acc.city || acc.email || ''}
               onChange={(val) => setDraft({ ...formValues, account_id: val })}
-              options={accountSelectOptions}
               disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'account')}
+              onSessionExpired={onSessionExpired}
             />
           </div>
         ) : null}

@@ -6,6 +6,7 @@ import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
 import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import { RecordRelationPicker } from '../components/crm/RecordRelationPicker.jsx'
 import {
   RecordSharingControl,
   SharingBadge,
@@ -22,11 +23,7 @@ import {
 } from '../service/crmService.js'
 import {
   VISIBILITY_FILTER_OPTIONS,
-  buildAccountSelectOptions,
   buildAssigneeSelectOptions,
-  buildContactSelectOptions,
-  syncAccountAndContactPatch,
-  syncContactAndAccountPatch,
 } from '../utils/crmFormOptions.js'
 
 const TICKET_STATUSES = ['New', 'Open', 'Pending', 'Resolved', 'Closed']
@@ -89,8 +86,9 @@ export function TicketsPane({
   user,
   permissions,
   permissionsRevision = 0,
-  initialInspectRequest = null,
-  onInspectRequestConsumed,
+  urlInspectRecordId = null,
+  onInspectRecord,
+  onCloseInspect,
   onOpenLinkedRecord,
   onAuditRecorded,
   onSessionExpired,
@@ -104,8 +102,9 @@ export function TicketsPane({
     objectKey: 'ticket',
     permissions,
     permissionsRevision,
-    initialInspectRequest,
-    onInspectRequestConsumed,
+    urlInspectRecordId,
+    onInspectRecord,
+    onCloseInspect,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
@@ -145,29 +144,17 @@ export function TicketsPane({
   const [draft, setDraft] = useState(null)
   const [validationError, setValidationError] = useState('')
 
+  const [pickedAccountsById, setPickedAccountsById] = useState({})
+  const [pickedContactsById, setPickedContactsById] = useState({})
+
   const allContacts = useMemo(
     () => pane.optionsData.contacts || [],
     [pane.optionsData.contacts],
   )
 
-  const accountOptions = useMemo(
-    () => buildAccountSelectOptions(pane.optionsData.accounts || [], 'No Account'),
-    [pane.optionsData.accounts],
-  )
-
   const assigneeFieldOptions = useMemo(
     () => buildAssigneeSelectOptions(pane.optionsData.assignees || [], 'Unassigned'),
     [pane.optionsData.assignees],
-  )
-
-  const createContactOptions = useMemo(
-    () =>
-      buildContactSelectOptions(
-        allContacts,
-        createForm.account_id,
-        `No ${contactLabel}`,
-      ),
-    [allContacts, createForm.account_id, contactLabel],
   )
 
   const active = pane.activeRecord
@@ -183,15 +170,47 @@ export function TicketsPane({
     shared_role_id: active?.shared_role_id ? String(active.shared_role_id) : '',
   }
 
-  const inspectorContactOptions = useMemo(
-    () =>
-      buildContactSelectOptions(
-        allContacts,
-        formValues.account_id,
-        `No ${contactLabel}`,
-      ),
-    [allContacts, formValues.account_id, contactLabel],
-  )
+  function applyAccountChange(currentForm, nextAccountId, pickedAccount = null) {
+    if (pickedAccount?.id) {
+      setPickedAccountsById((prev) => ({ ...prev, [String(pickedAccount.id)]: pickedAccount }))
+    }
+    const chosenContact =
+      pickedContactsById[currentForm.contact_id] ||
+      (active?.contact && String(active.contact.id) === currentForm.contact_id ? active.contact : null) ||
+      allContacts.find((c) => String(c.id) === currentForm.contact_id)
+    if (
+      chosenContact?.account_id &&
+      nextAccountId &&
+      String(chosenContact.account_id) !== nextAccountId
+    ) {
+      return { ...currentForm, account_id: nextAccountId, contact_id: '' }
+    }
+    return { ...currentForm, account_id: nextAccountId }
+  }
+
+  function applyContactChange(currentForm, nextContactId, pickedContact = null) {
+    if (pickedContact?.id) {
+      setPickedContactsById((prev) => ({ ...prev, [String(pickedContact.id)]: pickedContact }))
+    }
+    const chosen =
+      pickedContact ||
+      pickedContactsById[nextContactId] ||
+      allContacts.find((c) => String(c.id) === nextContactId)
+    if (chosen?.account_id) {
+      const linkedAccount =
+        chosen.account ||
+        (chosen.account_name ? { id: chosen.account_id, name: chosen.account_name } : null)
+      if (linkedAccount?.id) {
+        setPickedAccountsById((prev) => ({ ...prev, [String(linkedAccount.id)]: linkedAccount }))
+      }
+      return {
+        ...currentForm,
+        contact_id: nextContactId,
+        account_id: String(chosen.account_id),
+      }
+    }
+    return { ...currentForm, contact_id: nextContactId }
+  }
 
   const columns = useMemo(() => {
     const cols = [{ key: 'title', label: 'Title' }]
@@ -540,30 +559,55 @@ export function TicketsPane({
               {!hideAccount ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-ticket-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
-                  <Select
+                  <RecordRelationPicker
                     id="new-ticket-account"
                     ariaLabel="Account"
+                    workspaceSlug={workspace?.slug}
+                    objectKey="account"
+                    objectPluralLabel="Accounts"
                     value={createForm.account_id}
-                    onChange={(val) =>
-                      setCreateForm((f) => syncAccountAndContactPatch(f, val, allContacts))
+                    selectedRecord={pickedAccountsById[createForm.account_id] || null}
+                    fallbackOptions={pane.optionsData.accounts || []}
+                    emptyLabel="No Account"
+                    searchPlaceholder="Search Accounts..."
+                    getOptionMeta={(acc) => acc.city || acc.email || ''}
+                    onChange={(val, rec) =>
+                      setCreateForm((f) => applyAccountChange(f, val, rec))
                     }
-                    options={accountOptions}
                     disabled={creating || isFieldReadOnly(fr, 'account')}
+                    onSessionExpired={onSessionExpired}
                   />
                 </div>
               ) : null}
               {!hideContact ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-ticket-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
-                  <Select
+                  <RecordRelationPicker
                     id="new-ticket-contact"
                     ariaLabel={contactLabel}
+                    workspaceSlug={workspace?.slug}
+                    objectKey="contact"
+                    objectPluralLabel={contactPlural}
                     value={createForm.contact_id}
-                    onChange={(val) =>
-                      setCreateForm((f) => syncContactAndAccountPatch(f, val, allContacts))
+                    selectedRecord={pickedContactsById[createForm.contact_id] || null}
+                    fallbackOptions={allContacts}
+                    queryParams={
+                      createForm.account_id
+                        ? { compatible_account_id: createForm.account_id }
+                        : {}
                     }
-                    options={createContactOptions}
+                    emptyLabel={`No ${contactLabel}`}
+                    searchPlaceholder={`Search ${contactPlural}...`}
+                    getOptionLabel={(con) => {
+                      const accName = con.account?.name || con.account_name
+                      return accName ? `${con.name || con.display_label} (${accName})` : con.name || con.display_label
+                    }}
+                    getOptionMeta={(con) => con.email || con.phone || ''}
+                    onChange={(val, rec) =>
+                      setCreateForm((f) => applyContactChange(f, val, rec))
+                    }
                     disabled={creating || isFieldReadOnly(fr, 'contact')}
+                    onSessionExpired={onSessionExpired}
                   />
                 </div>
               ) : null}
@@ -629,6 +673,7 @@ export function TicketsPane({
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
+        auditRefreshKey={pane.recordAuditRevision}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
         badgeText={
@@ -716,32 +761,61 @@ export function TicketsPane({
             {!hideAccount ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="ticket-insp-account" label="Account" readOnly={isFieldReadOnly(fr, 'account')} />
-                <Select
+                <RecordRelationPicker
                   id="ticket-insp-account"
                   ariaLabel="Account"
+                  workspaceSlug={workspace?.slug}
+                  objectKey="account"
+                  objectPluralLabel="Accounts"
                   value={formValues.account_id}
-                  onChange={(val) => {
+                  selectedRecord={
+                    pickedAccountsById[formValues.account_id] || active?.account || null
+                  }
+                  fallbackOptions={pane.optionsData.accounts || []}
+                  emptyLabel="No Account"
+                  searchPlaceholder="Search Accounts..."
+                  getOptionMeta={(acc) => acc.city || acc.email || ''}
+                  onChange={(val, rec) => {
                     setValidationError('')
-                    setDraft(syncAccountAndContactPatch(formValues, val, allContacts))
+                    setDraft(applyAccountChange(formValues, val, rec))
                   }}
-                  options={accountOptions}
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'account')}
+                  onSessionExpired={onSessionExpired}
                 />
               </div>
             ) : null}
             {!hideContact ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="ticket-insp-contact" label={contactLabel} readOnly={isFieldReadOnly(fr, 'contact')} />
-                <Select
+                <RecordRelationPicker
                   id="ticket-insp-contact"
                   ariaLabel={contactLabel}
+                  workspaceSlug={workspace?.slug}
+                  objectKey="contact"
+                  objectPluralLabel={contactPlural}
                   value={formValues.contact_id}
-                  onChange={(val) => {
-                    setValidationError('')
-                    setDraft(syncContactAndAccountPatch(formValues, val, allContacts))
+                  selectedRecord={
+                    pickedContactsById[formValues.contact_id] || active?.contact || null
+                  }
+                  fallbackOptions={allContacts}
+                  queryParams={
+                    formValues.account_id
+                      ? { compatible_account_id: formValues.account_id }
+                      : {}
+                  }
+                  emptyLabel={`No ${contactLabel}`}
+                  searchPlaceholder={`Search ${contactPlural}...`}
+                  getOptionLabel={(con) => {
+                    const accName = con.account?.name || con.account_name
+                    return accName ? `${con.name || con.display_label} (${accName})` : con.name || con.display_label
                   }}
-                  options={inspectorContactOptions}
+                  getOptionMeta={(con) => con.email || con.phone || ''}
+                  onChange={(val, rec) => {
+                    setValidationError('')
+                    setDraft(applyContactChange(formValues, val, rec))
+                  }}
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'contact')}
+                  onSessionExpired={onSessionExpired}
                 />
               </div>
             ) : null}

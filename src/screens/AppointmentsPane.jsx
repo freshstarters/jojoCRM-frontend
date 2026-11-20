@@ -6,6 +6,7 @@ import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
 import { FieldLabel } from '../components/crm/FieldLabel.jsx'
 import { RecordInspectorDrawer } from '../components/crm/RecordInspectorDrawer.jsx'
+import { RecordRelationPicker } from '../components/crm/RecordRelationPicker.jsx'
 import {
   RecordSharingControl,
   SharingBadge,
@@ -13,13 +14,13 @@ import {
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
 import {
   filterWritablePayload,
+  getObjectRights,
   isFieldHidden,
   isFieldReadOnly,
 } from '../service/crmService.js'
 import {
   VISIBILITY_FILTER_OPTIONS,
   buildAssigneeSelectOptions,
-  buildContactSelectOptions,
 } from '../utils/crmFormOptions.js'
 import { formatDateTime, toDateTimeLocalValue } from '../utils/formatters.js'
 
@@ -70,9 +71,11 @@ export function AppointmentsPane({
   user,
   permissions,
   permissionsRevision = 0,
-  initialInspectRequest = null,
-  onInspectRequestConsumed,
+  urlInspectRecordId = null,
+  onInspectRecord,
+  onCloseInspect,
   onOpenLinkedRecord,
+  onRecordVisit,
   onAuditRecorded,
   onSessionExpired,
 }) {
@@ -80,14 +83,21 @@ export function AppointmentsPane({
   const contactPlural = workspace?.contact_plural_label || 'Contacts'
   const roleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
   const userTimezone = user?.timezone || 'Africa/Accra'
+  const canRecordVisit = Boolean(
+    onRecordVisit &&
+      Array.isArray(workspace?.enabled_object_keys) &&
+      workspace.enabled_object_keys.includes('visit') &&
+      getObjectRights(permissions, 'visit').canCreate,
+  )
 
   const pane = useCrmRecordsPane({
     workspaceSlug: workspace?.slug,
     objectKey: 'appointment',
     permissions,
     permissionsRevision,
-    initialInspectRequest,
-    onInspectRequestConsumed,
+    urlInspectRecordId,
+    onInspectRecord,
+    onCloseInspect,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
@@ -107,16 +117,6 @@ export function AppointmentsPane({
   const [creating, setCreating] = useState(false)
   const [draft, setDraft] = useState(null)
   const [validationError, setValidationError] = useState('')
-
-  const contactOptions = useMemo(
-    () =>
-      buildContactSelectOptions(
-        pane.optionsData.contacts || [],
-        '',
-        `Select ${contactLabel}...`,
-      ),
-    [pane.optionsData.contacts, contactLabel],
-  )
 
   const assigneeFilterOptions = useMemo(
     () => buildAssigneeSelectOptions(pane.optionsData.assignees || [], 'All assignees'),
@@ -480,13 +480,25 @@ export function AppointmentsPane({
               {!hideContact ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-apt-contact" label={`${contactLabel} (required)`} readOnly={isFieldReadOnly(fr, 'contact')} />
-                  <Select
+                  <RecordRelationPicker
                     id="new-apt-contact"
                     ariaLabel={contactLabel}
+                    workspaceSlug={workspace?.slug}
+                    objectKey="contact"
+                    objectPluralLabel={contactPlural}
                     value={createForm.contact_id}
+                    fallbackOptions={pane.optionsData.contacts || []}
+                    allowEmpty={false}
+                    placeholder={`Select ${contactLabel}...`}
+                    searchPlaceholder={`Search ${contactPlural}...`}
+                    getOptionLabel={(con) => {
+                      const accName = con.account?.name || con.account_name
+                      return accName ? `${con.name || con.display_label} (${accName})` : con.name || con.display_label
+                    }}
+                    getOptionMeta={(con) => con.email || con.phone || ''}
                     onChange={(val) => setCreateForm((f) => ({ ...f, contact_id: val }))}
-                    options={contactOptions}
                     disabled={creating || isFieldReadOnly(fr, 'contact')}
+                    onSessionExpired={onSessionExpired}
                   />
                 </div>
               ) : null}
@@ -563,10 +575,30 @@ export function AppointmentsPane({
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
+        auditRefreshKey={pane.recordAuditRevision}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
         badgeText={!hideStatus ? active?.status || '' : ''}
         badgeClassName={STATUS_BADGES[active?.status] || 'badge badge-neutral'}
+        headerActions={
+          canRecordVisit && active?.contact_id ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                onRecordVisit({
+                  contact_id: active.contact_id,
+                  contact: active.contact || null,
+                  date: active.scheduled_at || '',
+                  assignee_id: active.assignee_id || '',
+                })
+              }
+              className="px-2.5 py-1 text-[11px] font-medium"
+            >
+              Record Visit
+            </Button>
+          ) : null
+        }
       >
         {!hideTitle ? (
           <div className="space-y-1">
@@ -627,16 +659,29 @@ export function AppointmentsPane({
             {!hideContact ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="apt-insp-contact" label={`${contactLabel} (required)`} readOnly={isFieldReadOnly(fr, 'contact')} />
-                <Select
+                <RecordRelationPicker
                   id="apt-insp-contact"
                   ariaLabel={contactLabel}
+                  workspaceSlug={workspace?.slug}
+                  objectKey="contact"
+                  objectPluralLabel={contactPlural}
                   value={formValues.contact_id}
+                  selectedRecord={active?.contact || null}
+                  fallbackOptions={pane.optionsData.contacts || []}
+                  allowEmpty={false}
+                  placeholder={`Select ${contactLabel}...`}
+                  searchPlaceholder={`Search ${contactPlural}...`}
+                  getOptionLabel={(con) => {
+                    const accName = con.account?.name || con.account_name
+                    return accName ? `${con.name || con.display_label} (${accName})` : con.name || con.display_label
+                  }}
+                  getOptionMeta={(con) => con.email || con.phone || ''}
                   onChange={(val) => {
                     setValidationError('')
                     setDraft({ ...formValues, contact_id: val })
                   }}
-                  options={contactOptions}
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'contact')}
+                  onSessionExpired={onSessionExpired}
                 />
               </div>
             ) : null}

@@ -52,8 +52,9 @@ export function LeadsPane({
   user,
   permissions,
   permissionsRevision = 0,
-  initialInspectRequest = null,
-  onInspectRequestConsumed,
+  urlInspectRecordId = null,
+  onInspectRecord,
+  onCloseInspect,
   onOpenLinkedRecord,
   onAuditRecorded,
   onSessionExpired,
@@ -68,8 +69,9 @@ export function LeadsPane({
     objectKey: 'lead',
     permissions,
     permissionsRevision,
-    initialInspectRequest,
-    onInspectRequestConsumed,
+    urlInspectRecordId,
+    onInspectRecord,
+    onCloseInspect,
     needOptions: true,
     onAuditRecorded,
     onSessionExpired,
@@ -610,6 +612,7 @@ export function LeadsPane({
         onSave={handleSaveInspector}
         onDelete={pane.deleteActiveRecord}
         onActivityChanged={pane.refreshActiveRecord}
+        auditRefreshKey={pane.recordAuditRevision}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
         badgeText={!hideStatus ? (active?.status === 'converted' ? 'Converted' : 'Open') : ''}
