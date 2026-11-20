@@ -257,7 +257,7 @@ An automation is a rule. The role that has the automations switch may edit it.
 - Branches are if / else.
 - Actions: create record, update record, send email, in-app notification, or webhook.
 
-Automations have no loops and no custom code steps. A script action is the one script call allowed per branch, under the script rules above. Webhook actions enforce the same outbound network protections as scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. In-app notifications created by automations appear in a topbar notification center where users can read and dismiss them. Each automation rule records an execution and refusal history showing trigger timestamps, matched branch, action outcomes, webhook or script errors, and stored AI agent refusals.
+Automations have no loops and no custom code steps. A script action is the one script call allowed per branch, under the script rules above. Webhook actions enforce the same outbound network protections as scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. In-app notifications created by automations appear in a topbar notification center where users can read and dismiss them, alongside configurable per-user reminders for assigned overdue tasks, upcoming appointments, and Visits flagged with pending follow-ups. Each automation rule records an execution and refusal history showing trigger timestamps, matched branch, action outcomes, webhook or script errors, and stored AI agent refusals.
 
 ### Layouts
 
@@ -267,8 +267,8 @@ The layout builder lets a tenant rearrange a fixed set of surfaces:
 - Record pages as ordered sections and fields, with a per-record audit change history section inside the record inspector drawer.
 - Lists with chosen columns, filters, sort, saved views, permission-checked audited bulk row actions (stage/status updates, assignment, tagging, and delete), and CSV import column-mapping preview with structured row-level error reporting.
 - A deal kanban on pipeline stage, where the pack includes Deal.
-- A cross-record Activities view for filtering workspace tasks, calls, meetings, and notes across parent records.
-- Global search across the objects the workspace has, plus searchable/paginated relation pickers when workspaces hold more than 250 linkable records.
+- A cross-record Activities view for filtering workspace tasks, calls, meetings, and notes across parent records, plus a Day/Week agenda toggle on Appointments and Visits where enabled.
+- Global search across the objects the workspace has—including permission-aware quick-navigation commands and zero-match quick-create shortcuts pre-filled from the search query—plus searchable/paginated relation pickers when workspaces hold more than 250 linkable records.
 
 Navigating between workspace panes and subtabs—and opening a record in the inspector drawer—preserves the active pane, subtab, and inspected record in the URL or session state so a browser refresh, shareable link, or history navigation returns to that view. Record lists, global search results, and the audit history drawer paginate results so large workspaces remain responsive, and the workspace audit drawer filters by actor kind, object type, action, and search query.
 

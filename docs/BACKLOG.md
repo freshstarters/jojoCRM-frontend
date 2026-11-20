@@ -332,7 +332,7 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-A list can change columns, filters, and sort, and that combination can be saved and reopened. The deal kanban from S2.3 remains available beside the deal list. Record lists paginate rows with page controls that preserve active columns, filters, and sort, support permission-checked and audited multi-row bulk actions (stage/status updates, owner/assignee changes, tagging, and delete), and deep-linking to an inspected record (`?inspect=...`) preserves view context across refresh and history navigation. Foreign-key/relation pickers support server-backed search/pagination beyond 250 options.
+A list can change columns, filters, and sort, and that combination can be saved and reopened. The deal kanban from S2.3 remains available beside the deal list. Record lists paginate rows with page controls that preserve active columns, filters, and sort, support permission-checked and audited multi-row bulk actions (stage/status updates, owner/assignee changes, tagging, and delete), and deep-linking to an inspected record (`?inspect=...`) preserves view context across refresh and history navigation. Foreign-key/relation pickers support server-backed search/pagination beyond 250 options. Global search (`Ctrl/Cmd+K`) also surfaces permission-aware quick-navigation commands (such as Dashboard, Deals board, and Audit Log) and zero-match quick-create shortcuts pre-filled with the search query (name, email, or phone) for enabled creatable objects.
 
 The reviewer confirms:
 
@@ -340,17 +340,19 @@ The reviewer confirms:
 - Another user does not lose their own saved view.
 - A hidden field from S2.4 does not appear as a column for a role that cannot see it.
 - Navigating between pages on a filtered, sorted saved view preserves the view settings, running a bulk update on selected rows applies and audits the changes within caller permissions, and refreshing a deep-linked record reopens its inspector inside the view.
+- Typing an unmatched name/phone/email in Global Search offers a permission-checked quick-create shortcut pre-filled with the query, and quick-navigation commands jump directly to permitted workspace views.
 
 ### S4.6 Activities and tasks view
 
-Serves acceptance 4 and 10.
+Serves acceptance 4, 6, and 10.
 
-Provide a dedicated cross-record Activities workspace view where users can list, filter (by activity type `note`, `task`, `call`, `meeting`, completion status, assignee, and search query), create/complete tasks, and jump directly to each activity's parent CRM record, respecting S2.4 object, field, and sharing permissions.
+Provide a dedicated cross-record Activities workspace view where users can list, filter (by activity type `note`, `task`, `call`, `meeting`, completion status, assignee, and search query), create/complete tasks, and jump directly to each activity's parent CRM record, respecting S2.4 object, field, and sharing permissions. On workspaces where `Appointment` or `Visit` is enabled, provide a lightweight Day/Week Agenda toggle beside the list view so staff can inspect scheduled appointments, assignee availability, and follow-up visits chronologically while honoring S2.4 visibility and field rights.
 
 The reviewer confirms:
 
 - A user can view open tasks, calls, and meetings across multiple Accounts, Contacts, Deals, Jobs, and Tickets from one workspace Activities view.
 - Completing a task or filtering by assignee/type updates the parent record's timeline, and records hidden by sharing/role rules remain excluded.
+- Switching Appointments or Visits to the Day/Week Agenda view displays visible scheduled slots and visits chronologically in the user's timezone without exposing hidden fields or unshared records.
 
 ### S4.7 Multiple sales pipelines and stage outcomes
 
@@ -476,7 +478,7 @@ The reviewer confirms:
 
 Serves acceptance 9.
 
-A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. Webhook actions enforce the same outbound network safety checks as S5.2 scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
+A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. Webhook actions enforce the same outbound network safety checks as S5.2 scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. The notification center also surfaces configurable per-user reminders for assigned overdue `Activity` tasks, upcoming `Appointments`, and `Visits` flagged with a `follow_up` (respecting S2.4 visibility and field rights), with Settings toggles to enable or mute each reminder category. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
 
 The reviewer confirms:
 
@@ -484,7 +486,7 @@ The reviewer confirms:
 - The script action runs once on that branch, and the automation's execution history records the run and branch outcome.
 - A webhook action targeting a private, loopback, or link-local address is refused and logged in execution history.
 - A loop or a code step cannot be saved.
-- An automation firing an in-app notification displays the unread item in the topbar notification center and allows marking it read or dismissing it.
+- An automation firing an in-app notification displays the unread item in the topbar notification center and allows marking it read or dismissing it, and assigned overdue tasks, upcoming appointments, or Visits with follow-ups appear when enabled in the user's reminder preferences.
 
 ### S6.6 WhatsApp messaging, audio, and call logging
 
