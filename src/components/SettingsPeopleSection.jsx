@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { updateWorkspaceMemberRole } from '../service/crmService.js'
+import { apiGet, apiPost } from '../utils/api.js'
 import { Button } from './Button.jsx'
 import { Card } from './Card.jsx'
 import { FeedbackNotice } from './FeedbackNotice.jsx'
 import { Modal } from './Modal.jsx'
 import { RefreshButton } from './RefreshButton.jsx'
-import { apiGet, apiPost } from '../utils/api.js'
+import { Select } from './Select.jsx'
 
 const INVITE_STATUS_CLASSES = {
   pending: 'badge badge-info',
@@ -40,6 +42,7 @@ export function SettingsPeopleSection({
   workspace,
   user,
   permissions,
+  permissionsRevision = 0,
   onAuditRecorded,
   onSessionExpired,
 }) {
@@ -49,10 +52,12 @@ export function SettingsPeopleSection({
   const [loading, setLoading] = useState(Boolean(workspaceSlug))
   const [loadError, setLoadError] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRoleId, setInviteRoleId] = useState('')
   const [sendingInvite, setSendingInvite] = useState(false)
   const [resendingId, setResendingId] = useState(null)
   const [deactivateTarget, setDeactivateTarget] = useState(null)
   const [memberActionId, setMemberActionId] = useState(null)
+  const [roleUpdatingMemberId, setRoleUpdatingMemberId] = useState(null)
   const [actionError, setActionError] = useState('')
   const [actionNotice, setActionNotice] = useState('')
   const [revokeTarget, setRevokeTarget] = useState(null)
@@ -125,7 +130,7 @@ export function SettingsPeopleSection({
     return () => {
       cancelled = true
     }
-  }, [workspaceSlug, onSessionExpired])
+  }, [workspaceSlug, permissionsRevision, onSessionExpired])
 
   const canManageInvites =
     peopleData?.can_manage_users_and_roles ??
@@ -136,11 +141,30 @@ export function SettingsPeopleSection({
     )
   const members = peopleData?.members || []
   const invites = peopleData?.invites || []
+  const assignableRoles = useMemo(
+    () => peopleData?.assignable_roles || [],
+    [peopleData?.assignable_roles],
+  )
+  const roleOptions = useMemo(
+    () =>
+      assignableRoles.map((role) => ({
+        value: String(role.id),
+        label: role.name,
+      })),
+    [assignableRoles],
+  )
+  const defaultStaffRoleId = useMemo(() => {
+    const staff = assignableRoles.find((r) => r.is_default_staff) || assignableRoles[0]
+    return staff ? String(staff.id) : ''
+  }, [assignableRoles])
+
+  const effectiveInviteRoleId = inviteRoleId || defaultStaffRoleId
+
   const activeSeatCount =
     peopleData?.active_seat_count ??
     members.filter((m) => m.counts_as_active_seat).length
 
-  async function sendOrResendInvite(emailAddress, inviteId = null) {
+  async function sendOrResendInvite(emailAddress, inviteId = null, roleIdOverride = null) {
     if (!workspaceSlug) return
     setActionError('')
     setActionNotice('')
@@ -150,10 +174,15 @@ export function SettingsPeopleSection({
       setSendingInvite(true)
     }
 
+    const chosenRoleId = roleIdOverride ?? effectiveInviteRoleId
     try {
+      const payload = {
+        email: emailAddress,
+        ...(chosenRoleId ? { role_id: Number(chosenRoleId) } : {}),
+      }
       const { response, data } = await apiPost(
         `/api/v1/workspaces/${encodeURIComponent(workspaceSlug)}/invites/`,
-        { email: emailAddress },
+        payload,
       )
       if (!response.ok) {
         if (response.status === 401) {
@@ -189,6 +218,41 @@ export function SettingsPeopleSection({
       return
     }
     await sendOrResendInvite(trimmed)
+  }
+
+  async function handleReassignMemberRole(member, nextRoleId) {
+    if (!workspaceSlug || !member || !nextRoleId) return
+    if (String(member.role?.id || '') === String(nextRoleId)) return
+
+    setActionError('')
+    setActionNotice('')
+    setRoleUpdatingMemberId(member.id)
+    try {
+      const { response, data } = await updateWorkspaceMemberRole(
+        workspaceSlug,
+        member.id,
+        nextRoleId,
+      )
+      if (!response.ok) {
+        if (response.status === 401) {
+          onSessionExpired?.(data?.error || data?.detail)
+          return
+        }
+        setActionError(
+          data?.error || data?.detail || 'Could not update member role.',
+        )
+        return
+      }
+      setActionNotice(
+        data?.message || `Updated role for ${member.email}.`,
+      )
+      onAuditRecorded?.()
+      await loadPeople()
+    } catch {
+      setActionError('Network error while updating member role.')
+    } finally {
+      setRoleUpdatingMemberId(null)
+    }
   }
 
   async function handleConfirmRevoke() {
@@ -303,7 +367,7 @@ export function SettingsPeopleSection({
 
       {!loading && !canManageInvites ? (
         <Card variant="subtle" className="p-4 text-xs text-sub">
-          Only the workspace owner or an administrator with user-management permission can send or revoke invites.
+          Only the workspace owner or a role with users-and-roles permission can send invites or reassign member roles.
         </Card>
       ) : null}
 
@@ -314,7 +378,7 @@ export function SettingsPeopleSection({
               Invite a team member
             </h2>
             <p className="text-xs text-sub">
-              Invited people join {workspace?.name || 'this workspace'} only and are not location-checked when accepting or signing in.
+              Choose any non-Owner role. Invited people join {workspace?.name || 'this workspace'} only and are not location-checked when accepting or signing in.
             </p>
           </div>
 
@@ -340,6 +404,24 @@ export function SettingsPeopleSection({
                 disabled={sendingInvite}
               />
             </div>
+            {roleOptions.length > 0 ? (
+              <div className="sm:w-48 space-y-1.5">
+                <label
+                  htmlFor="invite-member-role"
+                  className="block text-xs font-medium text-main"
+                >
+                  Role
+                </label>
+                <Select
+                  id="invite-member-role"
+                  ariaLabel="Invite role"
+                  value={effectiveInviteRoleId}
+                  onChange={setInviteRoleId}
+                  options={roleOptions}
+                  disabled={sendingInvite}
+                />
+              </div>
+            ) : null}
             <Button
               type="submit"
               variant="primary"
@@ -387,6 +469,7 @@ export function SettingsPeopleSection({
                 <thead>
                   <tr className="border-b crm-border text-[11px] uppercase text-sub">
                     <th className="py-2.5 px-5 font-medium">Email</th>
+                    <th className="py-2.5 px-4 font-medium">Role</th>
                     <th className="py-2.5 px-4 font-medium">Status</th>
                     <th className="py-2.5 px-4 font-medium">Invited by</th>
                     <th className="py-2.5 px-4 font-medium">Last sent</th>
@@ -407,6 +490,11 @@ export function SettingsPeopleSection({
                       <tr key={invite.id}>
                         <td className="py-3 px-5 font-medium text-main break-all">
                           {invite.email}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="badge badge-neutral">
+                            {invite.role?.name || 'Staff'}
+                          </span>
                         </td>
                         <td className="py-3 px-4">
                           <span className={statusClass}>
@@ -431,7 +519,11 @@ export function SettingsPeopleSection({
                                 className="px-2.5 py-1 text-xs"
                                 disabled={resendingId === invite.id}
                                 onClick={() =>
-                                  sendOrResendInvite(invite.email, invite.id)
+                                  sendOrResendInvite(
+                                    invite.email,
+                                    invite.id,
+                                    invite.role?.id || null,
+                                  )
                                 }
                               >
                                 {resendingId === invite.id
@@ -471,7 +563,7 @@ export function SettingsPeopleSection({
               Workspace members
             </h2>
             <p className="text-xs text-sub">
-              Active verified members count toward workspace seats. Deactivating a non-Owner ends their session immediately.
+              Reassigning a non-Owner member updates their API and active session permissions immediately. Deactivating ends their session immediately.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -511,6 +603,12 @@ export function SettingsPeopleSection({
                   const roleName =
                     member.role?.name || (member.is_owner ? 'Owner' : 'Staff')
                   const isBusy = memberActionId === member.id
+                  const isUpdatingRole = roleUpdatingMemberId === member.id
+                  const canReassignThisMember =
+                    canManageInvites &&
+                    !member.is_owner &&
+                    roleOptions.length > 0 &&
+                    !(isCurrentUser && !permissions?.is_owner)
 
                   return (
                     <tr key={member.id}>
@@ -523,6 +621,19 @@ export function SettingsPeopleSection({
                       <td className="py-3 px-4">
                         {member.is_owner ? (
                           <span className="badge badge-info">{roleName}</span>
+                        ) : canReassignThisMember ? (
+                          <div className="w-44">
+                            <Select
+                              id={`member-role-${member.id}`}
+                              ariaLabel={`Role for ${member.email}`}
+                              value={member.role?.id ? String(member.role.id) : defaultStaffRoleId}
+                              onChange={(nextId) =>
+                                handleReassignMemberRole(member, nextId)
+                              }
+                              options={roleOptions}
+                              disabled={isUpdatingRole || isBusy}
+                            />
+                          </div>
                         ) : (
                           <span className="badge badge-neutral">{roleName}</span>
                         )}
