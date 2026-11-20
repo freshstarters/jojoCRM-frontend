@@ -41,6 +41,7 @@ export function GlobalSearchBar({
   const portalRef = useRef(null)
 
   const [open, setOpen] = useState(false)
+  const [mobileExpanded, setMobileExpanded] = useState(false)
   const [query, setQuery] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [objectType, setObjectType] = useState('')
@@ -145,7 +146,10 @@ export function GlobalSearchBar({
   }, [requestKey, workspaceSlug, effectiveQuery, effectiveObjectType, page, onSessionExpired])
 
   const updatePosition = useCallback(() => {
-    const anchor = containerRef.current
+    const anchor =
+      mobileExpanded && inputRef.current
+        ? inputRef.current.parentElement || inputRef.current
+        : containerRef.current
     if (!anchor) return
     const rect = anchor.getBoundingClientRect()
     const viewportWidth = window.innerWidth
@@ -159,7 +163,7 @@ export function GlobalSearchBar({
       left,
       width: desiredWidth,
     })
-  }, [])
+  }, [mobileExpanded])
 
   useLayoutEffect(() => {
     if (!open) return undefined
@@ -170,15 +174,18 @@ export function GlobalSearchBar({
       window.removeEventListener('resize', updatePosition)
       window.removeEventListener('scroll', updatePosition, true)
     }
-  }, [open, updatePosition])
+  }, [open, mobileExpanded, updatePosition])
 
   useEffect(() => {
     function handleGlobalKeyDown(event) {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
         event.preventDefault()
+        setMobileExpanded(true)
         setOpen(true)
-        inputRef.current?.focus()
-        inputRef.current?.select()
+        setTimeout(() => {
+          inputRef.current?.focus()
+          inputRef.current?.select()
+        }, 0)
       }
     }
     document.addEventListener('keydown', handleGlobalKeyDown)
@@ -186,7 +193,7 @@ export function GlobalSearchBar({
   }, [])
 
   useEffect(() => {
-    if (!open) return undefined
+    if (!open && !mobileExpanded) return undefined
     function handlePointerDown(event) {
       if (
         containerRef.current?.contains(event.target) ||
@@ -195,11 +202,13 @@ export function GlobalSearchBar({
         return
       }
       setOpen(false)
+      setMobileExpanded(false)
     }
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
         event.preventDefault()
         setOpen(false)
+        setMobileExpanded(false)
         inputRef.current?.blur()
       }
     }
@@ -209,7 +218,7 @@ export function GlobalSearchBar({
       document.removeEventListener('mousedown', handlePointerDown)
       document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open])
+  }, [open, mobileExpanded])
 
   const results = useMemo(() => searchData?.results || [], [searchData?.results])
   const searchableObjects = searchData?.searchable_objects || fallbackObjects
@@ -220,6 +229,7 @@ export function GlobalSearchBar({
   function handleSelectHit(hit) {
     if (!hit) return
     setOpen(false)
+    setMobileExpanded(false)
     onSelectResult?.(hit)
   }
 
@@ -249,56 +259,124 @@ export function GlobalSearchBar({
   }
 
   return (
-    <div ref={containerRef} className="flex-1 max-w-md mx-2 sm:mx-4 relative min-w-0">
-      <div className="relative flex items-center">
-        <svg
-          className="w-4 h-4 text-sub absolute left-3 pointer-events-none"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          aria-hidden="true"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-        <input
-          ref={inputRef}
-          id="globalSearchInput"
-          type="text"
-          role="combobox"
-          aria-expanded={open}
-          aria-controls="globalSearchResults"
-          aria-autocomplete="list"
-          aria-label="Global workspace search"
-          value={query}
-          onFocus={() => setOpen(true)}
-          onChange={(e) => {
-            setQuery(e.target.value)
-            setPage(1)
+    <div
+      ref={containerRef}
+      className="flex-1 max-w-md mx-1 sm:mx-4 relative min-w-0 flex justify-end sm:block"
+    >
+      {!mobileExpanded && (
+        <Button
+          type="button"
+          variant="icon"
+          className="sm:hidden shrink-0"
+          data-tooltip="Search"
+          aria-label="Open search"
+          onClick={() => {
+            setMobileExpanded(true)
             setOpen(true)
-          }}
-          onKeyDown={handleInputKeyDown}
-          placeholder={placeholderText}
-          className="crm-input w-full pl-9 pr-14 py-1.5 text-xs"
-        />
-        {query ? (
-          <button
-            type="button"
-            onClick={() => {
-              setQuery('')
-              setPage(1)
+            setTimeout(() => {
               inputRef.current?.focus()
-            }}
-            aria-label="Clear search"
-            className="absolute right-2.5 text-[11px] text-sub hover:text-main px-1.5 py-0.5 rounded"
+            }, 0)
+          }}
+        >
+          <svg
+            className="w-4 h-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
           >
-            Clear
-          </button>
-        ) : (
-          <span className="absolute right-2.5 text-[11px] text-sub hidden sm:inline px-1.5 py-0.5 rounded crm-subtle pointer-events-none">
-            Ctrl K
-          </span>
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+        </Button>
+      )}
+
+      <div
+        className={
+          mobileExpanded
+            ? 'fixed top-3 inset-x-3 h-[3.5rem] px-3 rounded-[1.35rem] bg-[var(--bg-modal)] border crm-border shadow-lg flex items-center gap-2 z-50 sm:static sm:inset-auto sm:h-auto sm:px-0 sm:rounded-none sm:bg-transparent sm:border-0 sm:shadow-none sm:flex'
+            : 'hidden sm:flex relative items-center'
+        }
+      >
+        <div className="relative flex items-center flex-1 min-w-0">
+          <svg
+            className="w-4 h-4 text-sub absolute left-3 pointer-events-none"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref={inputRef}
+            id="globalSearchInput"
+            type="text"
+            role="combobox"
+            aria-expanded={open}
+            aria-controls="globalSearchResults"
+            aria-autocomplete="list"
+            aria-label="Global workspace search"
+            value={query}
+            onFocus={() => setOpen(true)}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setPage(1)
+              setOpen(true)
+            }}
+            onKeyDown={handleInputKeyDown}
+            placeholder={placeholderText}
+            className="crm-input w-full pl-9 pr-14 py-1.5 text-xs"
+          />
+          {query ? (
+            <button
+              type="button"
+              onClick={() => {
+                setQuery('')
+                setPage(1)
+                inputRef.current?.focus()
+              }}
+              aria-label="Clear search"
+              className="absolute right-2.5 text-[11px] text-sub hover:text-main px-1.5 py-0.5 rounded"
+            >
+              Clear
+            </button>
+          ) : (
+            <span className="absolute right-2.5 text-[11px] text-sub hidden sm:inline px-1.5 py-0.5 rounded crm-subtle pointer-events-none">
+              Ctrl K
+            </span>
+          )}
+        </div>
+        {mobileExpanded && (
+          <Button
+            type="button"
+            variant="icon"
+            className="sm:hidden shrink-0"
+            aria-label="Close search"
+            onClick={() => {
+              setMobileExpanded(false)
+              setOpen(false)
+            }}
+          >
+            <svg
+              className="w-4 h-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </Button>
         )}
       </div>
 
