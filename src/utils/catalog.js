@@ -368,15 +368,40 @@ export function resolvePaneState(paneId, subtabId, workspace) {
   }
 }
 
-export function buildWorkspacePath(slug, paneId = 'dashboard', subtabId = '') {
+export const INSPECTABLE_OBJECT_PANES = {
+  account: 'accounts',
+  accounts: 'accounts',
+  contact: 'contacts',
+  contacts: 'contacts',
+  lead: 'leads',
+  leads: 'leads',
+  deal: 'deals',
+  deals: 'deals',
+  job: 'jobs',
+  jobs: 'jobs',
+  appointment: 'appointments',
+  appointments: 'appointments',
+  visit: 'visits',
+  visits: 'visits',
+  ticket: 'tickets',
+  tickets: 'tickets',
+}
+
+export function buildWorkspacePath(slug, paneId = 'dashboard', subtabId = '', options = {}) {
   if (!slug) return '/'
   const cleanPane = (paneId || 'dashboard').toLowerCase()
-  if (cleanPane === 'dashboard') {
-    return `/${encodeURIComponent(slug)}`
-  }
   const cleanSubtab = (subtabId || '').toLowerCase()
-  if (cleanSubtab) {
-    return `/${encodeURIComponent(slug)}/${encodeURIComponent(cleanPane)}/${encodeURIComponent(cleanSubtab)}`
+  let path = `/${encodeURIComponent(slug)}`
+  if (cleanPane !== 'dashboard') {
+    path = cleanSubtab
+      ? `/${encodeURIComponent(slug)}/${encodeURIComponent(cleanPane)}/${encodeURIComponent(cleanSubtab)}`
+      : `/${encodeURIComponent(slug)}/${encodeURIComponent(cleanPane)}`
   }
-  return `/${encodeURIComponent(slug)}/${encodeURIComponent(cleanPane)}`
+  const inspectVal = options?.inspect
+  if (inspectVal !== undefined && inspectVal !== null && String(inspectVal).trim() !== '') {
+    const params = new URLSearchParams()
+    params.set('inspect', String(inspectVal).trim())
+    return `${path}?${params.toString()}`
+  }
+  return path
 }

@@ -894,3 +894,43 @@ td {
   border-color: var(--brand-primary);
   background-color: var(--brand-soft);
 }
+
+/* Global Search Frosted Popover (Portaled onto document.body) */
+#globalSearchResults {
+  position: fixed;
+  z-index: 60;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 1rem !important;
+  background-color: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-modal);
+  color: var(--text-primary);
+  animation: dropdownFadeIn 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+[data-theme="dark"] #globalSearchResults {
+  background-color: rgba(24, 24, 29, 0.78);
+}
+#globalSearchResultsList {
+  max-height: 20rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Searchable Paginated Relation Picker Portal */
+.relation-picker-portal {
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+  background-color: rgba(255, 255, 255, 0.86);
+}
+[data-theme="dark"] .relation-picker-portal {
+  background-color: rgba(24, 24, 29, 0.88);
+}
+.relation-picker-list {
+  max-height: 14rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}

@@ -298,3 +298,39 @@ export function fetchDealsBoard(slug, params = {}) {
   const basePath = `/api/v1/workspaces/${encodeURIComponent(slug)}/deals/board/`
   return apiGet(qs ? `${basePath}?${qs}` : basePath)
 }
+
+export function searchWorkspaceRecords(slug, params = {}) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value))
+    }
+  }
+  const qs = search.toString()
+  const basePath = `/api/v1/workspaces/${encodeURIComponent(slug)}/search/`
+  return apiGet(qs ? `${basePath}?${qs}` : basePath)
+}
+
+export function fetchWorkspaceAudit(slug, params = {}) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value))
+    }
+  }
+  const qs = search.toString()
+  const basePath = `/api/v1/workspaces/${encodeURIComponent(slug)}/audit/`
+  return apiGet(qs ? `${basePath}?${qs}` : basePath)
+}
+
+export function fetchRecordAudit(slug, objectKey, recordId, params = {}) {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') {
+      search.set(key, String(value))
+    }
+  }
+  const qs = search.toString()
+  const basePath = `/api/v1/workspaces/${encodeURIComponent(slug)}/records/${encodeURIComponent(objectKey)}/${recordId}/audit/`
+  return apiGet(qs ? `${basePath}?${qs}` : basePath)
+}
