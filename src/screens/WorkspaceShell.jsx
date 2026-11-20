@@ -591,10 +591,13 @@ export function WorkspaceShell({
             <DashboardPane
               workspace={workspace}
               user={user}
+              permissions={permissions}
               permissionsRevision={permissionsRevision}
               activeTablesSummary={activeTablesSummary}
               onSelectPane={selectPane}
               onOpenRecord={handleOpenLinkedRecord}
+              onOpenAuditLog={() => setAuditDrawerOpen(true)}
+              onAuditRecorded={handleAuditRecorded}
               onSessionExpired={onSessionExpired}
             />
           ) : resolvedPane.status === 'active' &&
