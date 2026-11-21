@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
+import { DateTimePicker } from '../components/DateTimePicker.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
@@ -446,16 +447,15 @@ export function AppointmentsPane({
               {!hideScheduledAt ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-apt-time" label={`Time (${userTimezone})`} readOnly={isFieldReadOnly(fr, 'scheduled_at')} />
-                  <input
+                  <DateTimePicker
                     id="new-apt-time"
-                    type="datetime-local"
+                    ariaLabel={`Appointment time (${userTimezone})`}
                     required={!isFieldReadOnly(fr, 'scheduled_at')}
                     value={createForm.scheduled_at}
-                    onChange={(e) =>
-                      setCreateForm((f) => ({ ...f, scheduled_at: e.target.value }))
+                    onChange={(val) =>
+                      setCreateForm((f) => ({ ...f, scheduled_at: val }))
                     }
                     disabled={creating || isFieldReadOnly(fr, 'scheduled_at')}
-                    className="crm-input w-full px-3 py-2 num-tabular"
                   />
                 </div>
               ) : null}
@@ -622,16 +622,16 @@ export function AppointmentsPane({
             {!hideScheduledAt ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="apt-insp-time" label={`Time (${userTimezone})`} readOnly={isFieldReadOnly(fr, 'scheduled_at')} />
-                <input
+                <DateTimePicker
                   id="apt-insp-time"
-                  type="datetime-local"
+                  ariaLabel={`Appointment time (${userTimezone})`}
+                  required={!isFieldReadOnly(fr, 'scheduled_at')}
                   value={formValues.scheduled_at}
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'scheduled_at')}
-                  onChange={(e) => {
+                  onChange={(val) => {
                     setValidationError('')
-                    setDraft({ ...formValues, scheduled_at: e.target.value })
+                    setDraft({ ...formValues, scheduled_at: val })
                   }}
-                  className="crm-input w-full px-3 py-2 num-tabular"
                 />
               </div>
             ) : null}

@@ -211,10 +211,10 @@ export function DashboardPane({
       </div>
 
       {error ? (
-        <FeedbackNotice variant="error" message={error} onDismiss={() => setError('')} />
+        <FeedbackNotice tone="danger" message={error} onDismiss={() => setError('')} />
       ) : null}
       {taskError ? (
-        <FeedbackNotice variant="error" message={taskError} onDismiss={() => setTaskError('')} />
+        <FeedbackNotice tone="danger" message={taskError} onDismiss={() => setTaskError('')} />
       ) : null}
 
       {loading && !dashboardData ? (

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
 import { Card } from '../components/Card.jsx'
+import { Checkbox } from '../components/Checkbox.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Select } from '../components/Select.jsx'
 import { Subtabs } from '../components/Subtabs.jsx'
@@ -329,7 +330,7 @@ export function InvoicingPane({
         }
         toolbarCaption="Payments are recorded on issued invoices and automatically update invoice balances."
         searchValue={paymentPane.search}
-        onSearchChange={paymentPane.updateSearch}
+        onSearchChange={paymentPane.setSearch}
         searchPlaceholder="Search invoice # or ref..."
         filters={
           <>
@@ -504,7 +505,11 @@ export function InvoicingPane({
               invoicePane.summary?.total_invoiced !== undefined
                 ? formatGhs(invoicePane.summary.total_invoiced)
                 : '-',
-            sublabel: 'GHS across filtered invoices',
+            sublabel: `${
+              invoicePane.filters.include_draft_void === '1'
+                ? 'All statuses (incl. Draft & Void)'
+                : 'Active receivables (excl. Draft & Void)'
+            }`,
           },
           {
             label: 'Collected',
@@ -528,13 +533,15 @@ export function InvoicingPane({
         extraContent={
           statusMixSegments.length > 0 ? (
             <Card className="p-4 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <h3 className="text-xs font-semibold text-main">
                     Invoice Status &amp; Receivables Mix
                   </h3>
                   <p className="text-[11px] text-sub">
-                    Distribution of GHS billing across workspace invoice statuses
+                    {invoicePane.filters.include_draft_void === '1'
+                      ? 'Showing total GHS across all invoices including Draft and Void'
+                      : 'Showing active receivables only (Draft and Void excluded)'}
                   </p>
                 </div>
                 <span className="text-xs font-bold text-main num-tabular">
@@ -574,7 +581,7 @@ export function InvoicingPane({
         }
         toolbarCaption="Line items lock once an invoice leaves Draft. Payments never charge a card."
         searchValue={invoicePane.search}
-        onSearchChange={invoicePane.updateSearch}
+        onSearchChange={invoicePane.setSearch}
         searchPlaceholder="Search invoice # or customer..."
         filters={
           <>
@@ -596,6 +603,15 @@ export function InvoicingPane({
                 options={VISIBILITY_FILTER_OPTIONS}
               />
             </div>
+            <Checkbox
+              id="invoiceIncludeDraftVoidToggle"
+              checked={invoicePane.filters.include_draft_void === '1'}
+              onChange={(checked) =>
+                invoicePane.updateFilter('include_draft_void', checked ? '1' : '')
+              }
+              label="Include Draft & Void"
+              className="text-xs text-sub whitespace-nowrap"
+            />
           </>
         }
         loading={invoicePane.loading}

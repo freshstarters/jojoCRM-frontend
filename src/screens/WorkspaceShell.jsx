@@ -22,6 +22,9 @@ const AppointmentsPane = lazy(() =>
 const ContactsPane = lazy(() =>
   import('./ContactsPane.jsx').then((m) => ({ default: m.ContactsPane })),
 )
+const ContractsPane = lazy(() =>
+  import('./ContractsPane.jsx').then((m) => ({ default: m.ContractsPane })),
+)
 const DashboardPane = lazy(() =>
   import('./DashboardPane.jsx').then((m) => ({ default: m.DashboardPane })),
 )
@@ -614,6 +617,7 @@ export function WorkspaceShell({
               'contacts',
               'leads',
               'deals',
+              'contracts',
               'products',
               'invoicing',
               'jobs',
@@ -649,11 +653,17 @@ export function WorkspaceShell({
                     onOpenCreatedInvoice={(invoiceId) =>
                       handleOpenLinkedRecord('invoicing', invoiceId)
                     }
+                    onOpenCreatedContract={(contractId) =>
+                      handleOpenLinkedRecord('contracts', contractId)
+                    }
                     onOpenCreatedJob={(jobId) =>
                       handleOpenLinkedRecord('jobs', jobId)
                     }
                   />
                 )
+              }
+              if (resolvedPane.paneId === 'contracts') {
+                return <ContractsPane {...crmProps} />
               }
               if (resolvedPane.paneId === 'products') {
                 return (

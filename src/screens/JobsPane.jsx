@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
+import { DatePicker } from '../components/DateTimePicker.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
@@ -498,13 +499,12 @@ export function JobsPane({
               {!hideDueDate ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-job-due" label="Due date" readOnly={isFieldReadOnly(fr, 'due_date')} />
-                  <input
+                  <DatePicker
                     id="new-job-due"
-                    type="date"
+                    ariaLabel="Due date"
                     value={createForm.due_date}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, due_date: e.target.value }))}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, due_date: val }))}
                     disabled={creating || isFieldReadOnly(fr, 'due_date')}
-                    className="crm-input w-full px-3 py-2 num-tabular"
                   />
                 </div>
               ) : null}
@@ -692,16 +692,15 @@ export function JobsPane({
             {!hideDueDate ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="job-insp-due" label="Due date" readOnly={isFieldReadOnly(fr, 'due_date')} />
-                <input
+                <DatePicker
                   id="job-insp-due"
-                  type="date"
+                  ariaLabel="Due date"
                   value={formValues.due_date}
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'due_date')}
-                  onChange={(e) => {
+                  onChange={(val) => {
                     setValidationError('')
-                    setDraft({ ...formValues, due_date: e.target.value })
+                    setDraft({ ...formValues, due_date: val })
                   }}
-                  className="crm-input w-full px-3 py-2 num-tabular"
                 />
               </div>
             ) : null}

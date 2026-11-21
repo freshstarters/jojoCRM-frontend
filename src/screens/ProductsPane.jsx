@@ -189,7 +189,7 @@ export function ProductsPane({
         ]}
         toolbarCaption="Products linked to issued invoices cannot be deleted while commercial links exist."
         searchValue={pane.search}
-        onSearchChange={pane.updateSearch}
+        onSearchChange={pane.setSearch}
         searchPlaceholder="Search products or SKU..."
         filters={
           <>

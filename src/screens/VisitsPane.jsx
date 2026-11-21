@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
+import { DateTimePicker } from '../components/DateTimePicker.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
@@ -474,14 +475,13 @@ export function VisitsPane({
                     label={`Visit date (${userTimezone})`}
                     readOnly={isFieldReadOnly(fr, 'date')}
                   />
-                  <input
+                  <DateTimePicker
                     id="new-visit-date"
-                    type="datetime-local"
+                    ariaLabel={`Visit date (${userTimezone})`}
                     required={!isFieldReadOnly(fr, 'date')}
                     value={createForm.date}
-                    onChange={(e) => setCreateForm((f) => ({ ...f, date: e.target.value }))}
+                    onChange={(val) => setCreateForm((f) => ({ ...f, date: val }))}
                     disabled={creating || isFieldReadOnly(fr, 'date')}
-                    className="crm-input w-full px-3 py-2 num-tabular"
                   />
                 </div>
               ) : null}
@@ -658,16 +658,16 @@ export function VisitsPane({
                   label={`Visit date (${userTimezone})`}
                   readOnly={isFieldReadOnly(fr, 'date')}
                 />
-                <input
+                <DateTimePicker
                   id="visit-insp-date"
-                  type="datetime-local"
+                  ariaLabel={`Visit date (${userTimezone})`}
+                  required={!isFieldReadOnly(fr, 'date')}
                   value={formValues.date}
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'date')}
-                  onChange={(e) => {
+                  onChange={(val) => {
                     setValidationError('')
-                    setDraft({ ...formValues, date: e.target.value })
+                    setDraft({ ...formValues, date: val })
                   }}
-                  className="crm-input w-full px-3 py-2 num-tabular"
                 />
               </div>
             ) : null}

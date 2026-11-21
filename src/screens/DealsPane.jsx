@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
+import { DatePicker } from '../components/DateTimePicker.jsx'
 import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Modal } from '../components/Modal.jsx'
 import { Select } from '../components/Select.jsx'
@@ -135,6 +136,7 @@ export function DealsPane({
   onCloseInspect,
   onOpenLinkedRecord,
   onOpenCreatedInvoice,
+  onOpenCreatedContract,
   onOpenCreatedJob,
   onAuditRecorded,
   onSessionExpired,
@@ -924,15 +926,14 @@ export function DealsPane({
               {!hideCloseDate ? (
                 <div className="space-y-1">
                   <FieldLabel htmlFor="new-deal-close" label="Target close date" readOnly={isFieldReadOnly(fr, 'target_close_date')} />
-                  <input
+                  <DatePicker
                     id="new-deal-close"
-                    type="date"
+                    ariaLabel="Target close date"
                     value={createForm.target_close_date}
-                    onChange={(e) =>
-                      setCreateForm((f) => ({ ...f, target_close_date: e.target.value }))
+                    onChange={(val) =>
+                      setCreateForm((f) => ({ ...f, target_close_date: val }))
                     }
                     disabled={creating || isFieldReadOnly(fr, 'target_close_date')}
-                    className="crm-input w-full px-3 py-2"
                   />
                 </div>
               ) : null}
@@ -1157,15 +1158,14 @@ export function DealsPane({
             {!hideCloseDate ? (
               <div className="space-y-1">
                 <FieldLabel htmlFor="deal-insp-close" label="Target close date" readOnly={isFieldReadOnly(fr, 'target_close_date')} />
-                <input
+                <DatePicker
                   id="deal-insp-close"
-                  type="date"
+                  ariaLabel="Target close date"
                   value={formValues.target_close_date}
                   disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'target_close_date')}
-                  onChange={(e) =>
-                    setDraft({ ...formValues, target_close_date: e.target.value })
+                  onChange={(val) =>
+                    setDraft({ ...formValues, target_close_date: val })
                   }
-                  className="crm-input w-full px-3 py-2"
                 />
               </div>
             ) : null}
@@ -1227,6 +1227,9 @@ export function DealsPane({
           permissions={permissions}
           deal={active}
           products={pane.optionsData?.products || []}
+          optionsData={pane.optionsData || {}}
+          contactLabel={contactLabel}
+          contactPlural={contactPlural}
           canUpdateDeal={pane.rights.canUpdate}
           onDealChanged={async () => {
             setDraft(null)
@@ -1236,6 +1239,7 @@ export function DealsPane({
             onAuditRecorded?.()
           }}
           onOpenCreatedInvoice={onOpenCreatedInvoice}
+          onOpenCreatedContract={onOpenCreatedContract}
           onOpenCreatedJob={onOpenCreatedJob}
           onSessionExpired={onSessionExpired}
         />
