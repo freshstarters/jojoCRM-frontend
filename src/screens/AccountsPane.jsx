@@ -18,6 +18,7 @@ import {
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
 import {
   filterWritablePayload,
+  getObjectRights,
   isFieldHidden,
   isFieldReadOnly,
 } from '../service/crmService.js'
@@ -41,12 +42,19 @@ export function AccountsPane({
   onInspectRecord,
   onCloseInspect,
   onOpenLinkedRecord,
+  onCreatePolicy,
   onAuditRecorded,
   onSessionExpired,
 }) {
   const contactLabel = workspace?.contact_label || 'Contact'
   const contactPlural = workspace?.contact_plural_label || 'Contacts'
   const roleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
+  const canCreatePolicy = Boolean(
+    onCreatePolicy &&
+      Array.isArray(workspace?.enabled_object_keys) &&
+      workspace.enabled_object_keys.includes('policy') &&
+      getObjectRights(permissions, 'policy').canCreate,
+  )
 
   const pane = useCrmRecordsPane({
     workspaceSlug: workspace?.slug,
@@ -467,6 +475,28 @@ export function AccountsPane({
         onOpenLinkedRecord={onOpenLinkedRecord}
         onSessionExpired={onSessionExpired}
         badgeText={!hideCity ? active?.city || '' : ''}
+        headerActions={
+          canCreatePolicy && active ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                onCreatePolicy({
+                  account_id: active.id,
+                  account: {
+                    id: active.id,
+                    name: active.name || active.display_label,
+                    city: active.city || '',
+                    email: active.email || '',
+                  },
+                })
+              }
+              className="px-2.5 py-1 text-[11px] font-medium"
+            >
+              New Policy
+            </Button>
+          ) : null
+        }
       >
         {!hideName ? (
           <div className="space-y-1">

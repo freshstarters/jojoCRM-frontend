@@ -40,6 +40,9 @@ const InvoicingPane = lazy(() =>
 const LeadsPane = lazy(() =>
   import('./LeadsPane.jsx').then((m) => ({ default: m.LeadsPane })),
 )
+const PoliciesPane = lazy(() =>
+  import('./PoliciesPane.jsx').then((m) => ({ default: m.PoliciesPane })),
+)
 const ProductsPane = lazy(() =>
   import('./ProductsPane.jsx').then((m) => ({ default: m.ProductsPane })),
 )
@@ -285,6 +288,8 @@ export function WorkspaceShell({
   const [loggingOut, setLoggingOut] = useState(false)
   const [visitPrefill, setVisitPrefill] = useState(null)
   const [visitPrefillNonce, setVisitPrefillNonce] = useState(0)
+  const [policyPrefill, setPolicyPrefill] = useState(null)
+  const [policyPrefillNonce, setPolicyPrefillNonce] = useState(0)
 
   const handleAuditRecorded = useCallback(() => {
     setAuditRefreshKey((prev) => prev + 1)
@@ -294,12 +299,26 @@ export function WorkspaceShell({
     setVisitPrefill(null)
   }, [])
 
+  const handleClearPolicyPrefill = useCallback(() => {
+    setPolicyPrefill(null)
+  }, [])
+
   const handleStartRecordVisit = useCallback(
     (prefill) => {
       setMobileSidebarOpen(false)
       setVisitPrefill(prefill || {})
       setVisitPrefillNonce((prev) => prev + 1)
       onNavigatePane?.('visits', '')
+    },
+    [onNavigatePane],
+  )
+
+  const handleStartCreatePolicy = useCallback(
+    (prefill) => {
+      setMobileSidebarOpen(false)
+      setPolicyPrefill(prefill || {})
+      setPolicyPrefillNonce((prev) => prev + 1)
+      onNavigatePane?.('policies', '')
     },
     [onNavigatePane],
   )
@@ -623,6 +642,7 @@ export function WorkspaceShell({
               'leads',
               'deals',
               'contracts',
+              'policies',
               'products',
               'invoicing',
               'jobs',
@@ -643,9 +663,17 @@ export function WorkspaceShell({
                 onAuditRecorded: handleAuditRecorded,
                 onSessionExpired,
               }
-              if (resolvedPane.paneId === 'accounts') return <AccountsPane {...crmProps} />
+              if (resolvedPane.paneId === 'accounts') {
+                return <AccountsPane {...crmProps} onCreatePolicy={handleStartCreatePolicy} />
+              }
               if (resolvedPane.paneId === 'contacts') {
-                return <ContactsPane {...crmProps} onRecordVisit={handleStartRecordVisit} />
+                return (
+                  <ContactsPane
+                    {...crmProps}
+                    onRecordVisit={handleStartRecordVisit}
+                    onCreatePolicy={handleStartCreatePolicy}
+                  />
+                )
               }
               if (resolvedPane.paneId === 'leads') return <LeadsPane {...crmProps} />
               if (resolvedPane.paneId === 'deals') {
@@ -669,6 +697,16 @@ export function WorkspaceShell({
               }
               if (resolvedPane.paneId === 'contracts') {
                 return <ContractsPane {...crmProps} />
+              }
+              if (resolvedPane.paneId === 'policies') {
+                return (
+                  <PoliciesPane
+                    key={policyPrefillNonce}
+                    {...crmProps}
+                    prefillCreate={policyPrefill}
+                    onClearPrefillCreate={handleClearPolicyPrefill}
+                  />
+                )
               }
               if (resolvedPane.paneId === 'products') {
                 return (
