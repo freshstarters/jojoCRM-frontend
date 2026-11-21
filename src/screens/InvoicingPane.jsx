@@ -9,6 +9,7 @@ import { InvoiceFormModal } from '../components/invoicing/InvoiceFormModal.jsx'
 import { InvoiceInspectorDrawer } from '../components/invoicing/InvoiceInspectorDrawer.jsx'
 import { InvoicePdfPreviewModal } from '../components/invoicing/InvoicePdfPreviewModal.jsx'
 import { RecordPaymentModal } from '../components/invoicing/RecordPaymentModal.jsx'
+import { WarehousesInventorySection } from '../components/invoicing/WarehousesInventorySection.jsx'
 import { useCrmRecordsPane } from '../hooks/useCrmRecordsPane.js'
 import { getStatusBadgeClass, getStatusColor } from '../service/commercialService.js'
 import {
@@ -49,6 +50,9 @@ export function InvoicingPane({
   const contactPlural = workspace?.contact_plural_label || 'Contacts'
   const roleName = permissions?.role_name || (permissions?.is_owner ? 'Owner' : 'Staff')
   const canManageSales = canUserManageSalesSettings(permissions)
+  const inventoryEnabled = Boolean(
+    workspace?.enabled_object_keys?.includes('inventory'),
+  )
 
   const currentTab = activeSubtab || subtabs[0]?.id || 'invoices'
 
@@ -100,6 +104,7 @@ export function InvoicingPane({
   const [loadingPdfId, setLoadingPdfId] = useState(null)
   const [paymentActionError, setPaymentActionError] = useState('')
   const [reversingId, setReversingId] = useState(null)
+  const [inventoryRevision, setInventoryRevision] = useState(0)
 
   const paymentRights = getObjectRights(permissions, 'payment')
   const configuredStatuses = useMemo(
@@ -159,6 +164,7 @@ export function InvoicingPane({
     if (!hideInvAccount || !hideInvContact) cols.push({ key: 'customer', label: 'Customer' })
     if (!hideInvIssueDate || !hideInvDueDate) cols.push({ key: 'dates', label: 'Issue / Due' })
     cols.push({ key: 'lines', label: 'Lines' })
+    if (inventoryEnabled) cols.push({ key: 'warehouse', label: 'Warehouse' })
     if (!hideInvTotal) {
       cols.push({ key: 'total', label: 'Total (GHS)' })
       cols.push({ key: 'paid', label: 'Paid / Balance' })
@@ -167,6 +173,7 @@ export function InvoicingPane({
     cols.push({ key: 'action', label: 'Actions', align: 'right' })
     return cols
   }, [
+    inventoryEnabled,
     hideInvAccount,
     hideInvContact,
     hideInvIssueDate,
@@ -244,19 +251,35 @@ export function InvoicingPane({
       />
     ) : null
 
-  if (currentTab === 'inventory' || currentTab === 'subscriptions') {
-    const isInventory = currentTab === 'inventory'
+  if (currentTab === 'inventory') {
+    return (
+      <WarehousesInventorySection
+        workspaceSlug={workspaceSlug}
+        user={user}
+        permissions={permissions}
+        permissionsRevision={permissionsRevision}
+        subtabsBar={subtabsBar}
+        refreshRevision={inventoryRevision}
+        onInventoryMutated={() => {
+          invoicePane.reloadOptions?.()
+          invoicePane.reload()
+        }}
+        onAuditRecorded={onAuditRecorded}
+        onSessionExpired={onSessionExpired}
+      />
+    )
+  }
+
+  if (currentTab === 'subscriptions') {
     return (
       <section id="pane-invoicing" className="space-y-5 w-full">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-4 border-b crm-border">
           <div>
             <h1 className="text-xl font-semibold text-main tracking-tight">
-              {isInventory ? 'Warehouses & Inventory' : 'Customer Subscriptions'}
+              Customer Subscriptions
             </h1>
             <p className="text-xs text-sub mt-0.5">
-              {isInventory
-                ? 'Multi-warehouse stock levels and transfers arrive in S3.2.'
-                : 'Recurring customer billing agreements arrive in S3.4.'}
+              Recurring customer billing agreements arrive in S3.4.
             </p>
           </div>
           {subtabsBar}
@@ -264,12 +287,10 @@ export function InvoicingPane({
 
         <Card variant="subtle" className="p-5 space-y-2 max-w-3xl">
           <div className="text-xs font-semibold text-main">
-            {isInventory ? 'S3.2 Warehouses (Upcoming)' : 'S3.4 Customer Subscriptions (Upcoming)'}
+            S3.4 Customer Subscriptions (Upcoming)
           </div>
           <p className="text-xs text-sub">
-            {isInventory
-              ? 'Use the Invoices and Payments tabs to create Draft invoices, issue commercial PDFs, and record GHS payments. Warehouse stock deductions and transfers are part of S3.2.'
-              : 'Use the Invoices and Payments tabs for commercial billing in GHS. Automated recurring Draft invoice generation is part of S3.4.'}
+            Use the Invoices and Payments tabs for commercial billing in GHS. Automated recurring Draft invoice generation is part of S3.4.
           </p>
         </Card>
       </section>
@@ -634,6 +655,11 @@ export function InvoicingPane({
               <td className="py-2.5 px-3 text-sub num-tabular">
                 {row.line_items_count ?? 0}
               </td>
+              {inventoryEnabled ? (
+                <td className="py-2.5 px-3 text-body">
+                  {row.warehouse_summary || '-'}
+                </td>
+              ) : null}
               {!hideInvTotal ? (
                 <>
                   <td className="py-2.5 px-3 font-semibold text-main num-tabular">
@@ -712,11 +738,12 @@ export function InvoicingPane({
         contactPlural={contactPlural}
         onSubmitCreate={async (payload) => {
           const res = await invoicePane.createRecord(payload)
-          if (res.ok && res.data?.record?.id) {
-            invoicePane.openInspector(res.data.record.id)
+          if (res.ok && res.record?.id) {
+            invoicePane.openInspector(res.record.id)
           }
           return res
         }}
+        onOpenWarehouses={() => onSubtabChange?.('inventory')}
         onSessionExpired={onSessionExpired}
       />
 
@@ -732,11 +759,13 @@ export function InvoicingPane({
         contactPlural={contactPlural}
         onOpenPaymentModal={(inv) => setPaymentModalInvoice(inv)}
         onOpenPdfPreview={(inv) => setPdfPreviewInvoice(inv)}
+        onOpenWarehouses={() => onSubtabChange?.('inventory')}
         onOpenLinkedRecord={onOpenLinkedRecord}
         onInvoiceMutated={() => {
           onAuditRecorded?.()
           invoicePane.reload()
           paymentPane.reload()
+          setInventoryRevision((rev) => rev + 1)
         }}
         onSessionExpired={onSessionExpired}
       />

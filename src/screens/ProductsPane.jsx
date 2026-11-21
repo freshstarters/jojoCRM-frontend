@@ -44,6 +44,7 @@ export function ProductsPane({
   urlInspectRecordId = null,
   onInspectRecord,
   onCloseInspect,
+  onOpenInventory = null,
   onOpenLinkedRecord,
   onAuditRecorded,
   onSessionExpired,
@@ -494,6 +495,72 @@ export function ProductsPane({
             label="Active in catalog"
             disabled={!pane.rights.canUpdate || pane.savingInspector || isFieldReadOnly(fr, 'is_active')}
           />
+        ) : null}
+
+        {active?.inventory_readable ? (
+          <div className="pt-3 border-t crm-border space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-xs font-semibold uppercase tracking-wider text-sub">
+                Warehouse Stock
+              </h4>
+              {onOpenInventory ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setDraft(null)
+                    pane.closeInspector()
+                    onOpenInventory()
+                  }}
+                  className="px-2.5 py-1 text-[11px]"
+                >
+                  Open Inventory
+                </Button>
+              ) : null}
+            </div>
+            {!Array.isArray(active.warehouse_stocks) || active.warehouse_stocks.length === 0 ? (
+              <p className="text-xs text-sub">
+                No warehouses configured yet.
+              </p>
+            ) : (
+              <div className="space-y-1.5">
+                {active.warehouse_stocks.map((row) => (
+                  <div
+                    key={row.warehouse_id}
+                    className="p-2.5 rounded-lg crm-subtle border crm-border flex items-center justify-between gap-2 text-xs"
+                  >
+                    <div>
+                      <div className="font-medium text-main flex items-center gap-1.5">
+                        <span>{row.warehouse_name}</span>
+                        {row.is_default ? (
+                          <span className="badge badge-info text-[10px]">Default</span>
+                        ) : null}
+                      </div>
+                      <div className="text-[11px] text-sub num-tabular">
+                        Reorder level: {Number(row.reorder_level).toFixed(2).replace(/\.00$/, '')}
+                      </div>
+                    </div>
+                    <div className="text-right space-y-0.5">
+                      <div className="font-semibold text-main num-tabular">
+                        {Number(row.quantity_on_hand).toFixed(2).replace(/\.00$/, '')} on hand
+                      </div>
+                      <span
+                        className={
+                          row.status === 'In Stock'
+                            ? 'badge badge-success'
+                            : row.status === 'Low Stock'
+                              ? 'badge badge-warn'
+                              : 'badge badge-danger'
+                        }
+                      >
+                        {row.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : null}
       </RecordInspectorDrawer>
     </>

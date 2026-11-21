@@ -655,7 +655,14 @@ export function WorkspaceShell({
                   />
                 )
               }
-              if (resolvedPane.paneId === 'products') return <ProductsPane {...crmProps} />
+              if (resolvedPane.paneId === 'products') {
+                return (
+                  <ProductsPane
+                    {...crmProps}
+                    onOpenInventory={() => selectPane('invoicing', 'inventory')}
+                  />
+                )
+              }
               if (resolvedPane.paneId === 'invoicing') {
                 return (
                   <InvoicingPane
