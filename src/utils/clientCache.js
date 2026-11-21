@@ -226,6 +226,8 @@ export function invalidateClientCachesForMutation(path, method) {
     domains = ['options', 'packs', 'dashboard']
   } else if (subPath.startsWith('/inventory/')) {
     domains = ['packs', 'dashboard']
+  } else if (subPath.startsWith('/customer-subscriptions/')) {
+    domains = ['dashboard', 'packs', 'options', 'invoiceStatuses']
   } else if (subPath === '/' || subPath === '') {
     domains = ['options', 'packs', 'dashboard']
   }

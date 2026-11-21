@@ -163,6 +163,18 @@ export const SUBSCRIPTION_INTERVALS = [
 
 export const SUBSCRIPTION_STATUSES = ['Active', 'Paused', 'Cancelled']
 
+export const SUBSCRIPTION_FIELD_RIGHT_MAP = {
+  account_id: 'account',
+  product_id: 'product',
+  warehouse_id: 'warehouse',
+  quantity: 'quantity',
+  amount: 'amount',
+  interval: 'interval',
+  status: 'status',
+  next_billing_date: 'next_billing_date',
+  notes: 'notes',
+}
+
 export function getSubscriptionIntervalLabel(interval) {
   return SUBSCRIPTION_INTERVALS.find((item) => item.value === interval)?.label || interval
 }

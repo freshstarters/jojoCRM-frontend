@@ -288,6 +288,37 @@ test('clears client caches on workspace switch, logout, 401, permissions update,
   clearWorkspaceClientCaches()
 })
 
+test('invalidates dashboard, packs, options, and invoiceStatuses on customer-subscriptions mutations', async () => {
+  let dashboardCalls = 0
+  let optionsCalls = 0
+  globalThis.fetch = async (url, init = {}) => {
+    const method = (init.method || 'GET').toUpperCase()
+    if (url === '/api/v1/workspaces/ws-sub/dashboard/') {
+      dashboardCalls += 1
+      return makeJsonResponse({ total_records: dashboardCalls })
+    }
+    if (url === '/api/v1/workspaces/ws-sub/crm/options/') {
+      optionsCalls += 1
+      return makeJsonResponse({ accounts: [{ id: optionsCalls, name: `Acc-${optionsCalls}` }] })
+    }
+    if (url === '/api/v1/workspaces/ws-sub/customer-subscriptions/' && method === 'POST') {
+      return makeJsonResponse({ record: { id: 1 } }, { status: 201 })
+    }
+    throw new Error(`Unexpected ${method} ${url}`)
+  }
+
+  await fetchDashboardSummary('ws-sub')
+  await fetchCrmOptions('ws-sub')
+  assert.equal(dashboardCalls, 1)
+  assert.equal(optionsCalls, 1)
+
+  await apiPost('/api/v1/workspaces/ws-sub/customer-subscriptions/', { account_id: 1 })
+  await fetchDashboardSummary('ws-sub')
+  await fetchCrmOptions('ws-sub')
+  assert.equal(dashboardCalls, 2)
+  assert.equal(optionsCalls, 2)
+})
+
 test('prevents delayed in-flight response from old workspace polluting cache after switch', async () => {
   let resolveSlowFetch
   let callCount = 0
