@@ -10,6 +10,12 @@ import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Select } from '../Select.jsx'
 import { RecordRelationPicker } from '../crm/RecordRelationPicker.jsx'
 
+const PARENT_ID_KEYS = {
+  deal: 'deal_id',
+  invoice: 'invoice_id',
+  contract: 'contract_id',
+}
+
 function calcLineTotal(qty, unitPrice) {
   const q = Number(qty || 0)
   const p = Number(unitPrice || 0)
@@ -21,6 +27,8 @@ export function InvoiceLineItemsEditor({
   workspaceSlug,
   parentObjectKey = 'invoice',
   parentId = null,
+  title = 'Product Line Items',
+  headerExtra = null,
   items = [],
   onDraftItemsChange = null,
   products = [],
@@ -123,8 +131,9 @@ export function InvoiceLineItemsEditor({
 
     setSavingLine(true)
     try {
+      const parentIdKey = PARENT_ID_KEYS[parentObjectKey] || 'invoice_id'
       const payload = {
-        [parentObjectKey === 'deal' ? 'deal_id' : 'invoice_id']: parentId,
+        [parentIdKey]: parentId,
         ...(addingProductId ? { product_id: Number(addingProductId) } : {}),
         ...(requireWarehouse && addingWarehouseId
           ? { warehouse_id: Number(addingWarehouseId) }
@@ -270,13 +279,16 @@ export function InvoiceLineItemsEditor({
 
   return (
     <div className="space-y-2.5 text-xs">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h4 className="text-xs font-semibold uppercase tracking-wider text-sub">
-          Product Line Items
+          {title}
         </h4>
-        <span className="text-xs font-semibold text-main num-tabular">
-          Total: {formatGhs(linesSum)}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-main num-tabular">
+            Total: {formatGhs(linesSum)}
+          </span>
+          {headerExtra}
+        </div>
       </div>
 
       {locked && lockMessage ? (

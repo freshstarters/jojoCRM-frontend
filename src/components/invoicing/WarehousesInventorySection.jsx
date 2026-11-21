@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { getObjectRights } from '../../service/crmService.js'
 import {
   createStockTransfer,
@@ -60,35 +60,52 @@ export function WarehousesInventorySection({
     return () => clearTimeout(t)
   }, [search])
 
-  const loadOverview = useCallback(async () => {
-    if (!workspaceSlug || !rights.canRead) return
-    setLoading(true)
-    try {
-      const { response, data } = await fetchWorkspaceInventoryOverview(workspaceSlug, {
-        warehouseId: warehouseFilter,
-        q: debouncedSearch,
-        includeInactive: true,
-      })
-      if (!response.ok) {
-        if (response.status === 401) {
-          onSessionExpired?.(data?.error || data?.detail)
+  useEffect(() => {
+    if (!workspaceSlug || !rights.canRead) return undefined
+    let cancelled = false
+
+    fetchWorkspaceInventoryOverview(workspaceSlug, {
+      warehouseId: warehouseFilter,
+      q: debouncedSearch,
+      includeInactive: true,
+    })
+      .then(({ response, data }) => {
+        if (cancelled) return
+        if (!response.ok) {
+          if (response.status === 401) {
+            onSessionExpired?.(data?.error || data?.detail)
+            return
+          }
+          setLoadError(data?.error || 'Could not load warehouse inventory.')
           return
         }
-        setLoadError(data?.error || 'Could not load warehouse inventory.')
-        return
-      }
-      setLoadError('')
-      setOverview(data)
-    } catch {
-      setLoadError('Network error while loading warehouse inventory.')
-    } finally {
-      setLoading(false)
-    }
-  }, [workspaceSlug, rights.canRead, warehouseFilter, debouncedSearch, onSessionExpired])
+        setLoadError('')
+        setOverview(data)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError('Network error while loading warehouse inventory.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
 
-  useEffect(() => {
-    loadOverview()
-  }, [loadOverview, reloadTick, refreshRevision, permissionsRevision])
+    return () => {
+      cancelled = true
+    }
+  }, [
+    workspaceSlug,
+    rights.canRead,
+    warehouseFilter,
+    debouncedSearch,
+    onSessionExpired,
+    reloadTick,
+    refreshRevision,
+    permissionsRevision,
+  ])
 
   const allWarehouses = useMemo(() => overview?.warehouses || [], [overview?.warehouses])
   const activeWarehouses = useMemo(

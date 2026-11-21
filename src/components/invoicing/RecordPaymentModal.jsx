@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { createCrmRecord } from '../../service/crmService.js'
 import { formatGhs } from '../../utils/formatters.js'
 import { Button } from '../Button.jsx'
+import { DatePicker } from '../DateTimePicker.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { Select } from '../Select.jsx'
@@ -193,14 +194,13 @@ export function RecordPaymentModal({
             <label htmlFor="paymentDateInput" className="block font-medium text-body mb-1">
               Payment Date
             </label>
-            <input
+            <DatePicker
               id="paymentDateInput"
-              type="date"
+              ariaLabel="Payment Date"
               required
               value={paymentDate}
-              onChange={(e) => setPaymentDate(e.target.value)}
+              onChange={setPaymentDate}
               disabled={submitting}
-              className="crm-input w-full px-2.5 py-2 text-xs"
             />
           </div>
         </div>

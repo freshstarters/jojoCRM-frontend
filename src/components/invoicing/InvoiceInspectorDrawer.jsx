@@ -14,6 +14,7 @@ import {
 } from '../../service/crmService.js'
 import { formatDateOnly, formatGhs } from '../../utils/formatters.js'
 import { Button } from '../Button.jsx'
+import { DatePicker } from '../DateTimePicker.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { FieldLabel } from '../crm/FieldLabel.jsx'
 import { RecordInspectorDrawer } from '../crm/RecordInspectorDrawer.jsx'
@@ -396,19 +397,17 @@ export function InvoiceInspectorDrawer({
               label="Issue date"
               readOnly={isFieldReadOnly(fr, 'issue_date')}
             />
-            <input
+            <DatePicker
               id="inv-insp-issue"
-              type="date"
+              ariaLabel="Issue date"
+              required={!isFieldReadOnly(fr, 'issue_date')}
               value={formValues.issue_date}
               disabled={
                 !pane.rights.canUpdate ||
                 pane.savingInspector ||
                 isFieldReadOnly(fr, 'issue_date')
               }
-              onChange={(e) =>
-                setDraft({ ...formValues, issue_date: e.target.value })
-              }
-              className="crm-input w-full px-3 py-2"
+              onChange={(val) => setDraft({ ...formValues, issue_date: val })}
             />
           </div>
         ) : null}
@@ -419,19 +418,17 @@ export function InvoiceInspectorDrawer({
               label="Due date"
               readOnly={isFieldReadOnly(fr, 'due_date')}
             />
-            <input
+            <DatePicker
               id="inv-insp-due"
-              type="date"
+              ariaLabel="Due date"
+              required={!isFieldReadOnly(fr, 'due_date')}
               value={formValues.due_date}
               disabled={
                 !pane.rights.canUpdate ||
                 pane.savingInspector ||
                 isFieldReadOnly(fr, 'due_date')
               }
-              onChange={(e) =>
-                setDraft({ ...formValues, due_date: e.target.value })
-              }
-              className="crm-input w-full px-3 py-2"
+              onChange={(val) => setDraft({ ...formValues, due_date: val })}
             />
           </div>
         ) : null}

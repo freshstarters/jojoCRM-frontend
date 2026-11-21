@@ -55,6 +55,7 @@ export function DashboardKpiRow({
   const countsByObject = dashboardData?.counts_by_object || {}
   const openCounts = dashboardData?.open_counts || {}
   const dealSummary = dashboardData?.deal_summary || null
+  const invoiceSummary = dashboardData?.invoice_summary || null
   const taskSummary = dashboardData?.task_summary || null
   const readableKeys = dashboardData?.readable_object_keys || []
   const totalRecords = dashboardData?.total_records ?? 0
@@ -92,8 +93,34 @@ export function DashboardKpiRow({
       : `${dealSummary.total_count}`
     : `${donutTotal}`
 
-  // Card 3: Highest-priority live operational queue
+  // Card 3: Highest-priority live operational / receivables queue
   const queueCard = (() => {
+    if (invoiceSummary) {
+      const hasAmount =
+        invoiceSummary.total_outstanding !== null &&
+        invoiceSummary.total_outstanding !== undefined
+      const overdueCount = invoiceSummary.overdue_count ?? 0
+      return {
+        label: 'Invoice Receivables',
+        badge:
+          overdueCount > 0
+            ? `${overdueCount} overdue`
+            : `${invoiceSummary.total_count ?? 0} total`,
+        value: hasAmount
+          ? formatGhs(invoiceSummary.total_outstanding)
+          : `${invoiceSummary.total_count ?? 0} invoices`,
+        subtitle: hasAmount
+          ? `${formatGhs(invoiceSummary.total_collected || 0)} collected · ${formatGhs(invoiceSummary.total_invoiced || 0)} billed`
+          : 'Amount hidden by role · Billing summary',
+        paneId: 'invoicing',
+        subtabId: 'invoices',
+        series: [
+          Number(invoiceSummary.total_invoiced || 0),
+          Number(invoiceSummary.total_collected || 0),
+          Number(invoiceSummary.total_outstanding || 0),
+        ],
+      }
+    }
     if (readableKeys.includes('ticket')) {
       const openTickets = openCounts.ticket_open ?? 0
       const totalTickets = countsByObject.ticket ?? 0
@@ -275,9 +302,11 @@ export function DashboardKpiRow({
         </div>
       </Card>
 
-      {/* KPI Card 3: Active Operational Queue + Rose Sparkline */}
+      {/* Card 3: Active Operational Queue or Invoice Receivables */}
       <Card
-        onClick={() => queueCard.paneId && onSelectPane?.(queueCard.paneId)}
+        onClick={() =>
+          queueCard.paneId && onSelectPane?.(queueCard.paneId, queueCard.subtabId || '')
+        }
         className={`rounded-xl p-4 flex flex-col justify-between ${
           queueCard.paneId ? 'cursor-pointer hover:shadow-md transition-shadow' : ''
         }`}

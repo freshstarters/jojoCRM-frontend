@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { filterWritablePayload, isFieldHidden, isFieldReadOnly } from '../../service/crmService.js'
 import { formatGhs } from '../../utils/formatters.js'
 import { Button } from '../Button.jsx'
+import { DatePicker } from '../DateTimePicker.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { FieldLabel } from '../crm/FieldLabel.jsx'
@@ -213,14 +214,13 @@ export function InvoiceFormModal({
                 required
                 readOnly={isFieldReadOnly(fieldRights, 'issue_date')}
               />
-              <input
+              <DatePicker
                 id="new-inv-issue"
-                type="date"
+                ariaLabel="Issue date"
                 required
                 value={form.issue_date}
-                onChange={(e) => setForm((f) => ({ ...f, issue_date: e.target.value }))}
+                onChange={(val) => setForm((f) => ({ ...f, issue_date: val }))}
                 disabled={submitting || isFieldReadOnly(fieldRights, 'issue_date')}
-                className="crm-input w-full px-3 py-2"
               />
             </div>
           ) : null}
@@ -232,14 +232,13 @@ export function InvoiceFormModal({
                 required
                 readOnly={isFieldReadOnly(fieldRights, 'due_date')}
               />
-              <input
+              <DatePicker
                 id="new-inv-due"
-                type="date"
+                ariaLabel="Due date"
                 required
                 value={form.due_date}
-                onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
+                onChange={(val) => setForm((f) => ({ ...f, due_date: val }))}
                 disabled={submitting || isFieldReadOnly(fieldRights, 'due_date')}
-                className="crm-input w-full px-3 py-2"
               />
             </div>
           ) : null}
