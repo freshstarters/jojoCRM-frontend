@@ -186,7 +186,7 @@ Each interval creates a Draft invoice linked to the subscription. Stock does not
 
 ### Contracts
 
-A Contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date. A user can create a pre-filled Contract directly from a Deal.
+A Contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date. A user can create a pre-filled Contract directly from a Deal and export a printable commercial summary PDF (`S4.3`).
 
 ### Files, tags, and relations
 
@@ -196,7 +196,7 @@ On a tenant-created table, a relation field is many-to-one: many records may poi
 
 ## Stock
 
-Where the pack includes Inventory, a workspace has multiple warehouses. One warehouse is the default. Each Product has a quantity on hand and a reorder level in each warehouse.
+Where the pack includes Inventory, a workspace has multiple warehouses. One warehouse is the default. Each Product has a quantity on hand and a reorder level in each warehouse, supporting low-stock reorder dashboard widgets (`S5.3`) and threshold triggers (`S6.5`).
 
 An invoice line can choose a warehouse. Quantity drops when the invoice is issued and returns when the invoice is voided. Payment status does not move stock.
 
@@ -263,20 +263,20 @@ Automations have no loops and no custom code steps. A script action is the one s
 
 The layout builder lets a tenant rearrange a fixed set of surfaces:
 
-- A home dashboard of widgets supporting period filtering (`This Month`, `Quarter`, `YTD`, `All Time`) and quick follow-up To-Do creation/completion. Widget types are number, chart, and list. Each widget is bound to an object and filters.
+- A home dashboard of widgets supporting period filtering (`This Month`, `Quarter`, `YTD`, `All Time`), quick follow-up To-Do creation/completion, and per-user drag-and-drop dashboard card/box reordering (available to all signed-in users by default with reset-to-default, while workspace default layouts and record-page section/field schemas require the `theme-and-layouts` switch). Widget types are number, chart, and list. Each widget is bound to an object and filters.
 - Record pages as ordered sections and fields, with a per-record audit change history section inside the record inspector drawer.
 - Lists with chosen columns, filters, sort, saved views, permission-checked audited bulk row actions (stage/status updates, assignment, tagging, and delete), and CSV import column-mapping preview with structured row-level error reporting.
 - A deal kanban on pipeline stage, where the pack includes Deal.
 - A cross-record Activities view for filtering workspace tasks, calls, meetings, and notes across parent records, plus a Day/Week agenda toggle on Appointments and Visits where enabled.
 - Global search across the objects the workspace has—including permission-aware quick-navigation commands and zero-match quick-create shortcuts pre-filled from the search query—plus searchable/paginated relation pickers when workspaces hold more than 250 linkable records.
 
-Navigating between workspace panes and subtabs—and opening a record in the inspector drawer—preserves the active pane, subtab, and inspected record in the URL or session state so a browser refresh, shareable link, or history navigation returns to that view. Record lists, global search results, and the audit history drawer paginate results so large workspaces remain responsive, and the workspace audit drawer filters by actor kind, object type, action, and search query.
+Navigating between workspace panes and subtabs—and opening a record in the inspector drawer—preserves the active pane, subtab, and inspected record in the URL or session state so a browser refresh, shareable link, or history navigation returns to that view. Select dropdowns and date/date-time inputs use consistent custom overlay controls (`Select`, `DatePicker`, `DateTimePicker`) rather than browser-default pickers. Record lists, global search results, and the audit history drawer paginate results so large workspaces remain responsive, and the workspace audit drawer filters by actor kind, object type, action, and search query.
 
 There is no free-form canvas and no custom HTML.
 
 ### Theme
 
-Theme tokens cover preset themes, a logo, primary, accent, and surface colors, light or dark, and a short font list. The shell, dashboard, and record pages use those tokens. Tenants do not paste CSS.
+Every workspace user can customize personal appearance tokens (light or dark, preset accent color, and a short font list) by default for their own session, while a user with `theme-and-layouts` sets workspace-wide branding (custom business logo, default colors, and font tokens). The shell, dashboard, and record pages use those tokens. Tenants do not paste CSS.
 
 ## AI
 

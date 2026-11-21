@@ -355,6 +355,26 @@
     [data-theme="dark"] #auditDrawerPanel {
       background-color: rgba(24, 24, 29, 0.52);
     }
+    #dealInspectorBackdrop:not(.hidden) #dealInspectorDrawerContent,
+    #accountInspectorBackdrop:not(.hidden) #accountInspectorDrawerContent,
+    #contactInspectorBackdrop:not(.hidden) #contactInspectorDrawerContent,
+    #leadInspectorBackdrop:not(.hidden) #leadInspectorDrawerContent,
+    #contractInspectorBackdrop:not(.hidden) #contractInspectorDrawerContent,
+    #ticketInspectorBackdrop:not(.hidden) #ticketInspectorDrawerContent,
+    #campaignInspectorBackdrop:not(.hidden) #campaignInspectorDrawerContent,
+    #automationInspectorBackdrop:not(.hidden) #automationInspectorDrawerContent,
+    #inspectionInspectorBackdrop:not(.hidden) #inspectionInspectorDrawerContent,
+    #auditDrawerBackdrop:not(.hidden) #auditDrawerPanel {
+      animation: drawerSlideIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes drawerSlideIn {
+      from { opacity: 0.65; transform: translateX(18px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .crm-drawer-scrim {
+      flex: 1 1 0%;
+      background-color: rgb(15 23 42 / 0.4);
+    }
     #convertLeadModal .crm-card,
     #newDealModal .crm-card,
     #newAccountModal .crm-card,
@@ -367,10 +387,16 @@
     #stageManagerModal .crm-card,
     #paymentModalContent,
     #invoicePdfModal .crm-card,
-    #aiAssistModal .crm-card {
+    #aiAssistModal .crm-card,
+    #crmDialogBackdrop .crm-card {
       background-color: var(--bg-modal);
       border: 1px solid var(--border-strong);
       box-shadow: var(--shadow-modal);
+      animation: modalPopIn 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @keyframes modalPopIn {
+      from { opacity: 0; transform: translateY(6px) scale(0.975); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
     }
     /* Portaled onto <html>. Blur dies inside the top bar and under overflow:hidden ancestors. Scroll lives on the list, not here. */
     #globalSearchResults {
@@ -511,7 +537,8 @@
     }
 
     /* Custom Translucent Dropdown System (Replaces Browser Native <select>) */
-    select.crm-input.custom-select-hidden {
+    select.crm-input.custom-select-hidden,
+    input[type="date"].crm-input.custom-date-hidden {
       display: none !important;
     }
     .custom-select-trigger {
@@ -533,13 +560,19 @@
       box-shadow: var(--shadow-card);
       transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
     }
-    .custom-select-trigger:hover {
+    .custom-select-trigger:hover:not(:disabled) {
       background-color: var(--bg-hover);
       border-color: var(--border-strong);
     }
+    .custom-select-trigger:focus-visible,
     .custom-select-trigger.is-open {
+      outline: none;
       border-color: var(--brand-primary);
       box-shadow: 0 0 0 2px var(--brand-soft);
+    }
+    .custom-select-trigger:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
     }
     .custom-select-chevron {
       width: 0.875rem;
@@ -555,7 +588,7 @@
     .custom-select-portal {
       position: fixed;
       z-index: 9999;
-      background-color: var(--bg-surface);
+      background-color: rgba(255, 255, 255, 0.56);
       backdrop-filter: blur(18px);
       -webkit-backdrop-filter: blur(18px);
       border: 1px solid var(--border-strong);
@@ -567,7 +600,29 @@
       animation: dropdownFadeIn 0.15s cubic-bezier(0.22, 1, 0.36, 1);
     }
     [data-theme="dark"] .custom-select-portal {
+      background-color: rgba(24, 24, 29, 0.62);
       box-shadow: 0 20px 40px -8px rgba(0, 0, 0, 0.75), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+    .relation-picker-portal {
+      max-height: none;
+      overflow: hidden;
+      padding: 0;
+    }
+    .custom-select-search-wrap {
+      padding: 0.45rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    .relation-picker-list {
+      max-height: 13.5rem;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 0.35rem;
+    }
+    .custom-select-empty {
+      padding: 0.75rem 0.65rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-align: center;
     }
     @keyframes dropdownFadeIn {
       from { opacity: 0; transform: translateY(-4px) scale(0.98); }
@@ -585,15 +640,620 @@
       color: var(--text-primary);
       text-align: left;
       cursor: pointer;
+      background: transparent;
+      border: none;
       transition: background-color 0.12s ease, color 0.12s ease;
     }
-    .custom-select-option:hover {
+    .custom-select-option:hover,
+    .custom-select-option.is-active {
       background-color: var(--bg-hover);
     }
     .custom-select-option.is-selected {
       background-color: var(--brand-soft);
       color: var(--brand-text);
       font-weight: 600;
+    }
+    .custom-select-option:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* Custom Translucent Date Picker (Mirrors Main App DatePicker) */
+    .custom-date-wrap {
+      position: relative;
+      display: flex;
+      align-items: center;
+      width: 100%;
+    }
+    .custom-date-trigger {
+      padding-left: 2.15rem !important;
+      padding-right: 0.75rem !important;
+    }
+    .custom-date-trigger.has-clear {
+      padding-right: 2rem !important;
+    }
+    .custom-date-icon {
+      position: absolute;
+      left: 0.7rem;
+      width: 0.875rem;
+      height: 0.875rem;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .custom-date-clear {
+      position: absolute;
+      right: 0.45rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.35rem;
+      height: 1.35rem;
+      border-radius: 0.45rem;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.12s ease, background-color 0.12s ease;
+    }
+    .custom-date-clear:hover {
+      color: var(--text-primary);
+      background-color: var(--bg-hover);
+    }
+    .custom-datepicker-portal {
+      position: fixed;
+      z-index: 9999;
+      width: 18rem;
+      background-color: var(--bg-modal);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-strong);
+      border-radius: 1rem !important;
+      box-shadow: 0 20px 40px -8px rgba(15, 23, 42, 0.24), 0 6px 14px -2px rgba(15, 23, 42, 0.1), inset 0 1px 0 0 rgba(255, 255, 255, 0.45);
+      padding: 0.75rem;
+      animation: dropdownFadeIn 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    [data-theme="dark"] .custom-datepicker-portal {
+      box-shadow: 0 22px 44px -8px rgba(0, 0, 0, 0.78), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+    .dp-day-btn {
+      height: 2rem;
+      border-radius: 0.55rem !important;
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-primary);
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    }
+    .dp-day-btn:hover:not(:disabled):not(.is-selected) {
+      background-color: var(--bg-hover);
+    }
+    .dp-day-btn.is-outside {
+      color: var(--text-muted);
+      opacity: 0.55;
+    }
+    .dp-day-btn.is-today:not(.is-selected) {
+      border-color: var(--brand-primary);
+      font-weight: 600;
+      color: var(--brand-text);
+    }
+    .dp-day-btn.is-selected {
+      background-color: var(--brand-primary);
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .dp-day-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .dp-quick-chip {
+      padding: 0.22rem 0.5rem;
+      border-radius: 0.5rem !important;
+      font-size: 0.6875rem;
+      font-weight: 500;
+      color: var(--text-secondary);
+      background-color: var(--bg-subtle);
+      border: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    }
+    .dp-quick-chip:hover:not(:disabled) {
+      color: var(--text-primary);
+      background-color: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+
+    /* Custom Checkboxes (Ported from Main App) */
+    .crm-checkbox {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+      vertical-align: middle;
+    }
+    .crm-checkbox.is-disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+    .crm-checkbox-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .crm-checkbox-input:disabled { cursor: not-allowed; }
+    .crm-checkbox-box {
+      width: 1.0625rem;
+      height: 1.0625rem;
+      flex-shrink: 0;
+      border-radius: 0.375rem !important;
+      border: 1px solid var(--border-strong);
+      background-color: var(--bg-surface);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.28);
+      transition: background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
+    }
+    [data-theme="dark"] .crm-checkbox-box {
+      box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+    }
+    .crm-checkbox:not(.is-disabled):hover .crm-checkbox-box {
+      border-color: var(--brand-primary);
+      background-color: var(--bg-hover);
+    }
+    .crm-checkbox-input:focus-visible + .crm-checkbox-box {
+      border-color: var(--brand-primary);
+      box-shadow: 0 0 0 3px var(--brand-soft);
+    }
+    .crm-checkbox-input:checked + .crm-checkbox-box,
+    .crm-checkbox-input:indeterminate + .crm-checkbox-box {
+      background-color: var(--brand-primary);
+      border-color: var(--brand-primary);
+      color: #ffffff;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.14);
+    }
+    .crm-checkbox:not(.is-disabled):hover .crm-checkbox-input:checked + .crm-checkbox-box,
+    .crm-checkbox:not(.is-disabled):hover .crm-checkbox-input:indeterminate + .crm-checkbox-box {
+      background-color: var(--brand-hover);
+      border-color: var(--brand-hover);
+    }
+    .crm-checkbox:not(.is-disabled):active .crm-checkbox-box {
+      transform: scale(0.94);
+    }
+    .crm-checkbox-icon {
+      width: 0.72rem;
+      height: 0.72rem;
+      opacity: 0;
+      transform: scale(0.72);
+      pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+    .crm-checkbox-input:checked + .crm-checkbox-box .crm-checkbox-icon,
+    .crm-checkbox-input:indeterminate + .crm-checkbox-box .crm-checkbox-icon {
+      opacity: 1;
+      transform: scale(1);
+    }
+    .crm-checkbox-label { line-height: 1.3; }
+
+    /* Custom Toggle Switches */
+    .crm-switch {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.55rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .crm-switch.is-disabled { opacity: 0.55; cursor: not-allowed; }
+    .crm-switch-input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      opacity: 0;
+      cursor: pointer;
+      z-index: 1;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .crm-switch-track {
+      position: relative;
+      width: 2.35rem;
+      height: 1.3rem;
+      flex-shrink: 0;
+      border-radius: 9999px !important;
+      border: 1px solid var(--border-strong);
+      background-color: var(--bg-subtle);
+      transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .crm-switch-thumb {
+      position: absolute;
+      top: 0.125rem;
+      left: 0.125rem;
+      width: 0.925rem;
+      height: 0.925rem;
+      border-radius: 9999px !important;
+      background-color: var(--text-muted);
+      box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25);
+      transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease;
+    }
+    .crm-switch-input:focus-visible + .crm-switch-track {
+      box-shadow: 0 0 0 3px var(--brand-soft);
+      border-color: var(--brand-primary);
+    }
+    .crm-switch-input:checked + .crm-switch-track {
+      background-color: var(--brand-primary);
+      border-color: var(--brand-primary);
+    }
+    .crm-switch-input:checked + .crm-switch-track .crm-switch-thumb {
+      transform: translateX(1.05rem);
+      background-color: #ffffff;
+    }
+
+    /* Custom Radios & Radio Cards */
+    .crm-radio {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      cursor: pointer;
+      user-select: none;
+    }
+    .crm-radio-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      margin: 0;
+      cursor: pointer;
+      z-index: 1;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .crm-radio-circle {
+      width: 1.0625rem;
+      height: 1.0625rem;
+      border-radius: 9999px !important;
+      border: 1px solid var(--border-strong);
+      background-color: var(--bg-surface);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+    }
+    .crm-radio-dot {
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 9999px !important;
+      background-color: #ffffff;
+      transform: scale(0);
+      transition: transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .crm-radio-input:focus-visible + .crm-radio-circle {
+      box-shadow: 0 0 0 3px var(--brand-soft);
+      border-color: var(--brand-primary);
+    }
+    .crm-radio-input:checked + .crm-radio-circle {
+      background-color: var(--brand-primary);
+      border-color: var(--brand-primary);
+    }
+    .crm-radio-input:checked + .crm-radio-circle .crm-radio-dot {
+      transform: scale(1);
+    }
+    .crm-radio-card {
+      position: relative;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      padding: 0.7rem 0.85rem;
+      border-radius: 0.85rem !important;
+      border: 1px solid var(--border-color);
+      background-color: var(--bg-subtle);
+      cursor: pointer;
+      transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    .crm-radio-card:hover {
+      background-color: var(--bg-hover);
+      border-color: var(--border-strong);
+    }
+    .crm-radio-card:has(.crm-radio-input:checked) {
+      border-color: var(--brand-primary);
+      background-color: var(--brand-soft);
+      box-shadow: 0 0 0 1px var(--brand-primary);
+    }
+
+    /* Custom Number Stepper (Suppresses Browser Spinners) */
+    input[type="number"].crm-input {
+      -moz-appearance: textfield;
+      appearance: textfield;
+    }
+    input[type="number"].crm-input::-webkit-inner-spin-button,
+    input[type="number"].crm-input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    .crm-number-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: stretch;
+    }
+    .crm-number-wrap input[type="number"].crm-input {
+      padding-right: 3.6rem !important;
+    }
+    .crm-number-wrap.is-compact input[type="number"].crm-input {
+      padding-right: 2.1rem !important;
+    }
+    .crm-number-controls {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      bottom: 2px;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+    .crm-number-btn {
+      width: 1.55rem;
+      height: 100%;
+      border-radius: 0.55rem !important;
+      border: 1px solid transparent;
+      background-color: var(--bg-subtle);
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      user-select: none;
+      transition: background-color 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+    }
+    .crm-number-btn:hover {
+      background-color: var(--bg-hover);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+    .crm-number-wrap.is-compact .crm-number-controls {
+      flex-direction: column;
+      gap: 1px;
+    }
+    .crm-number-wrap.is-compact .crm-number-btn {
+      width: 1.25rem;
+      height: 50%;
+      font-size: 0.625rem;
+      line-height: 1;
+      border-radius: 0.3rem !important;
+    }
+
+    /* Custom Search Input (Suppresses Native Search Clear Button) */
+    input[type="search"].crm-input::-webkit-search-decoration,
+    input[type="search"].crm-input::-webkit-search-cancel-button,
+    input[type="search"].crm-input::-webkit-search-results-button,
+    input[type="search"].crm-input::-webkit-search-results-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .crm-search-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .crm-search-wrap input[type="search"].crm-input {
+      padding-left: 1.95rem !important;
+      padding-right: 1.85rem !important;
+    }
+    .crm-search-icon {
+      position: absolute;
+      left: 0.65rem;
+      width: 0.85rem;
+      height: 0.85rem;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .crm-search-clear {
+      position: absolute;
+      right: 0.4rem;
+      width: 1.3rem;
+      height: 1.3rem;
+      border-radius: 0.45rem !important;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      transition: color 0.12s ease, background-color 0.12s ease;
+    }
+    .crm-search-clear:hover {
+      color: var(--text-primary);
+      background-color: var(--bg-hover);
+    }
+
+    /* Custom Range Slider */
+    .crm-range {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 0.375rem;
+      border-radius: 9999px !important;
+      background: var(--bg-subtle);
+      border: 1px solid var(--border-color);
+      outline: none;
+      cursor: pointer;
+    }
+    .crm-range::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 1.05rem;
+      height: 1.05rem;
+      border-radius: 9999px !important;
+      background: var(--brand-primary);
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+      cursor: pointer;
+      transition: transform 0.12s ease, background-color 0.12s ease;
+    }
+    .crm-range::-webkit-slider-thumb:hover {
+      transform: scale(1.1);
+      background: var(--brand-hover);
+    }
+    .crm-range::-moz-range-thumb {
+      width: 1.05rem;
+      height: 1.05rem;
+      border-radius: 9999px !important;
+      background: var(--brand-primary);
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 6px rgba(15, 23, 42, 0.25);
+      cursor: pointer;
+    }
+
+    /* Custom File Dropzone */
+    .crm-dropzone {
+      border: 1.5px dashed var(--border-strong);
+      background-color: var(--bg-subtle);
+      border-radius: 0.9rem !important;
+      padding: 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s ease, background-color 0.15s ease;
+    }
+    .crm-dropzone:hover,
+    .crm-dropzone.is-dragover {
+      border-color: var(--brand-primary);
+      background-color: var(--brand-soft);
+    }
+
+    /* Custom Floating Toast Stack */
+    #crmToastRegion {
+      position: fixed;
+      bottom: 1.25rem;
+      right: 1.25rem;
+      z-index: 10020;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.5rem;
+      pointer-events: none;
+      max-width: 24rem;
+      width: calc(100vw - 2rem);
+    }
+    .crm-toast {
+      pointer-events: auto;
+      width: auto;
+      max-width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.65rem 0.85rem;
+      border-radius: 0.9rem !important;
+      background-color: var(--bg-modal);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 16px 34px -10px rgba(15, 23, 42, 0.25), 0 4px 12px -4px rgba(15, 23, 42, 0.1);
+      color: var(--text-primary);
+      font-size: 0.75rem;
+      animation: toastSlideIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    [data-theme="dark"] .crm-toast {
+      box-shadow: 0 18px 36px -8px rgba(0, 0, 0, 0.75);
+    }
+    .crm-toast.is-leaving {
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+      transition: opacity 0.16s ease, transform 0.16s ease;
+    }
+    @keyframes toastSlideIn {
+      from { opacity: 0; transform: translateY(10px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .crm-toast-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 9999px !important;
+      flex-shrink: 0;
+    }
+    .crm-toast[data-tone="info"] .crm-toast-dot { background-color: var(--brand-primary); }
+    .crm-toast[data-tone="success"] .crm-toast-dot { background-color: #10b981; }
+    .crm-toast[data-tone="warn"] .crm-toast-dot { background-color: #f59e0b; }
+    .crm-toast[data-tone="danger"] .crm-toast-dot { background-color: #ef4444; }
+
+    /* Destructive Button Variant */
+    .btn-danger {
+      background-color: #e11d48;
+      color: #ffffff;
+      border: 1px solid transparent;
+      border-radius: 0.75rem !important;
+      font-weight: 500;
+      transition: background-color 0.15s ease;
+    }
+    .btn-danger:hover { background-color: #be123c; }
+
+    /* Custom Right-Click Context Menu Portal */
+    .custom-context-portal {
+      position: fixed;
+      z-index: 10010;
+      min-width: 12.5rem;
+      background-color: rgba(255, 255, 255, 0.64);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid var(--border-strong);
+      border-radius: 0.9rem !important;
+      box-shadow: 0 20px 42px -10px rgba(15, 23, 42, 0.24), inset 0 1px 0 0 rgba(255, 255, 255, 0.45);
+      padding: 0.35rem;
+      animation: dropdownFadeIn 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    [data-theme="dark"] .custom-context-portal {
+      background-color: rgba(24, 24, 29, 0.72);
+      box-shadow: 0 22px 44px -8px rgba(0, 0, 0, 0.78), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    }
+    .custom-context-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      padding: 0.45rem 0.65rem;
+      border-radius: 0.6rem !important;
+      font-size: 0.75rem;
+      color: var(--text-primary);
+      background: transparent;
+      border: none;
+      text-align: left;
+      cursor: pointer;
+      transition: background-color 0.12s ease, color 0.12s ease;
+    }
+    .custom-context-item:hover {
+      background-color: var(--bg-hover);
+    }
+    .custom-context-item.is-danger {
+      color: #e11d48;
+    }
+    [data-theme="dark"] .custom-context-item.is-danger {
+      color: #fb7185;
+    }
+    .custom-context-divider {
+      height: 1px;
+      margin: 0.25rem 0.35rem;
+      background-color: var(--border-color);
     }
     .floating-sidebar:hover,
     .floating-sidebar.mobile-open {
@@ -1264,15 +1924,6 @@
         </div>
       </header>
 
-      <!-- Subtle Notification Toast Banner -->
-      <div id="toastBanner" class="hidden ml-3 mr-4 mt-2 rounded-lg border crm-border px-4 py-2 flex items-center justify-between text-xs" style="background-color: var(--brand-soft); backdrop-filter: blur(12px);">
-        <div class="flex items-center space-x-2">
-          <span class="w-2 h-2 rounded-full" style="background-color: var(--brand-primary);"></span>
-          <span id="toastMessage" class="font-medium text-main"></span>
-        </div>
-        <button onclick="hideToast()" class="text-sub hover:text-main font-medium">Dismiss</button>
-      </div>
-
       <!-- SCROLLABLE PANE CONTAINER -->
       <main class="flex-1 pt-3 pb-6 px-3 sm:px-4 space-y-5">
 
@@ -1323,17 +1974,32 @@
               <button onclick="resetWidgetLayout()" class="text-xs font-medium hover:underline" style="color: var(--brand-text);">Reset Default</button>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-              <label class="flex items-center justify-between p-2.5 crm-subtle cursor-pointer">
-                <span class="font-medium text-main">1. Top Mini-Chart KPI Row</span>
-                <input type="checkbox" checked onchange="toggleWidgetSection('widget-numbers', this.checked)" class="rounded" />
+              <label class="crm-checkbox justify-between p-2.5 crm-subtle w-full">
+                <span class="font-medium text-main crm-checkbox-label">1. Top Mini-Chart KPI Row</span>
+                <span class="relative inline-flex items-center">
+                  <input type="checkbox" checked onchange="toggleWidgetSection('widget-numbers', this.checked)" class="crm-checkbox-input" />
+                  <span aria-hidden="true" class="crm-checkbox-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="crm-checkbox-icon"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                </span>
               </label>
-              <label class="flex items-center justify-between p-2.5 crm-subtle cursor-pointer">
-                <span class="font-medium text-main">2. Revenue Combo Chart, Tasks &amp; Cashflow</span>
-                <input type="checkbox" checked onchange="toggleWidgetSection('widget-middle', this.checked)" class="rounded" />
+              <label class="crm-checkbox justify-between p-2.5 crm-subtle w-full">
+                <span class="font-medium text-main crm-checkbox-label">2. Revenue Combo Chart, Tasks &amp; Cashflow</span>
+                <span class="relative inline-flex items-center">
+                  <input type="checkbox" checked onchange="toggleWidgetSection('widget-middle', this.checked)" class="crm-checkbox-input" />
+                  <span aria-hidden="true" class="crm-checkbox-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="crm-checkbox-icon"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                </span>
               </label>
-              <label class="flex items-center justify-between p-2.5 crm-subtle cursor-pointer">
-                <span class="font-medium text-main">3. Active Deals Table &amp; Ghana Hubs Map</span>
-                <input type="checkbox" checked onchange="toggleWidgetSection('widget-bottom', this.checked)" class="rounded" />
+              <label class="crm-checkbox justify-between p-2.5 crm-subtle w-full">
+                <span class="font-medium text-main crm-checkbox-label">3. Active Deals Table &amp; Ghana Hubs Map</span>
+                <span class="relative inline-flex items-center">
+                  <input type="checkbox" checked onchange="toggleWidgetSection('widget-bottom', this.checked)" class="crm-checkbox-input" />
+                  <span aria-hidden="true" class="crm-checkbox-box">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="crm-checkbox-icon"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                </span>
               </label>
             </div>
           </div>
@@ -2665,11 +3331,172 @@
             <p class="text-xs text-sub mt-0.5">Workspace administration. These sections are laid out for the sample. They do not save.</p>
           </div>
           <div id="settingsSubtabs" class="subtab-bar" role="tablist" aria-label="Settings sections"></div>
-          <div class="crm-card p-6 space-y-3">
+          <div id="settingsDefaultCard" class="crm-card p-6 space-y-3">
             <span id="settingsBadge" class="badge badge-info">Settings</span>
             <h2 id="settingsTitle" class="text-lg font-semibold text-main"></h2>
             <p id="settingsDesc" class="text-xs text-sub"></p>
             <ul id="settingsChecks" class="text-xs text-body space-y-1.5 list-disc list-inside"></ul>
+          </div>
+
+          <div id="settingsUiKitPanel" class="hidden space-y-5">
+            <div class="crm-card p-6 space-y-4">
+              <div class="flex flex-wrap items-start justify-between gap-3 pb-3 border-b crm-border">
+                <div>
+                  <span class="badge badge-info">Design System · Zero Browser Defaults</span>
+                  <h2 class="text-lg font-semibold text-main mt-1.5">Custom UI Component Showcase</h2>
+                  <p class="text-xs text-sub mt-0.5">Every interactive control in jojoCRM uses your frosted tokens, light/dark modes, and brand accents.</p>
+                </div>
+                <span class="badge badge-neutral text-[11px] num-tabular">Press ⌘K Search · Esc Close</span>
+              </div>
+
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div class="p-4 crm-subtle space-y-3">
+                  <div class="font-semibold text-main">Custom Dialogs (Alert / Confirm / Prompt)</div>
+                  <p class="text-sub">Replaces native <code class="px-1 py-0.5 rounded crm-card">alert()</code>, <code class="px-1 py-0.5 rounded crm-card">confirm()</code>, and <code class="px-1 py-0.5 rounded crm-card">prompt()</code>.</p>
+                  <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="demoUiKitAlert()" class="btn-secondary px-3 py-1.5 text-xs">Test Alert</button>
+                    <button type="button" onclick="demoUiKitConfirm()" class="btn-secondary px-3 py-1.5 text-xs">Test Confirm</button>
+                    <button type="button" onclick="demoUiKitDangerConfirm()" class="btn-danger px-3 py-1.5 text-xs">Destructive Confirm</button>
+                    <button type="button" onclick="demoUiKitPrompt()" class="btn-primary px-3 py-1.5 text-xs">Test Prompt</button>
+                  </div>
+                </div>
+
+                <div class="p-4 crm-subtle space-y-3">
+                  <div class="font-semibold text-main">Floating Toast Stack</div>
+                  <p class="text-sub">Bottom-right frosted pills with auto-dismiss, hover-pause, and semantic tones.</p>
+                  <div class="flex flex-wrap gap-2">
+                    <button type="button" onclick="showToast('Saved workspace settings snapshot.', { tone: 'info' })" class="btn-secondary px-3 py-1.5 text-xs">Info</button>
+                    <button type="button" onclick="showToast('Invoice INV-408 issued and stock updated.', { tone: 'success' })" class="btn-secondary px-3 py-1.5 text-xs">Success</button>
+                    <button type="button" onclick="showToast('Reorder threshold reached in Tema Port Depot.', { tone: 'warn' })" class="btn-secondary px-3 py-1.5 text-xs">Warning</button>
+                    <button type="button" onclick="showToast('Could not connect to Hubtel gateway.', { tone: 'danger' })" class="btn-secondary px-3 py-1.5 text-xs">Danger</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div class="crm-card p-5 space-y-3.5">
+                <div class="font-semibold text-main pb-2 border-b crm-border">Date Picker &amp; Dropdowns</div>
+                <div>
+                  <label class="block font-medium text-body mb-1" for="uiKitDateDemo">Custom Date Picker (Date-Only)</label>
+                  <input id="uiKitDateDemo" type="date" value="2026-11-21" class="crm-input w-full px-3 py-2" />
+                </div>
+                <div>
+                  <label class="block font-medium text-body mb-1" for="uiKitSelectDemo">Standard Translucent Select</label>
+                  <select id="uiKitSelectDemo" class="crm-input w-full px-3 py-2">
+                    <option value="accra">Accra Central (Default)</option>
+                    <option value="tema">Tema Port Depot</option>
+                    <option value="kumasi">Kumasi Hub</option>
+                    <option value="takoradi">Takoradi Yard</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block font-medium text-body mb-1" for="uiKitSearchSelectDemo">Searchable Relation Dropdown</label>
+                  <select id="uiKitSearchSelectDemo" data-searchable="true" class="crm-input w-full px-3 py-2">
+                    <option value="ACC-101">Kora Industrial Ltd · Accra</option>
+                    <option value="ACC-102">Accra Heavy Logistics Ltd · Tema</option>
+                    <option value="ACC-103">Goldfields Mining Supplies · Tarkwa</option>
+                    <option value="ACC-104">Volta Solar Systems · Ho</option>
+                    <option value="ACC-105">Ashanti Agro Processing · Kumasi</option>
+                    <option value="ACC-106">Tema Marine Engineering · Tema</option>
+                    <option value="ACC-107">Northern Grain Depot · Tamale</option>
+                    <option value="ACC-108">Cape Coast Cold Chain · Cape Coast</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="crm-card p-5 space-y-3.5">
+                <div class="font-semibold text-main pb-2 border-b crm-border">Checkboxes, Switches &amp; Radios</div>
+                <div class="flex flex-wrap items-center gap-4">
+                  <label class="crm-checkbox text-xs text-main">
+                    <input type="checkbox" checked class="crm-checkbox-input" />
+                    <span aria-hidden="true" class="crm-checkbox-box"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="crm-checkbox-icon"><polyline points="20 6 9 17 4 12"/></svg></span>
+                    <span class="crm-checkbox-label">Checked</span>
+                  </label>
+                  <label class="crm-checkbox text-xs text-main">
+                    <input id="uiKitIndeterminateDemo" type="checkbox" class="crm-checkbox-input" />
+                    <span aria-hidden="true" class="crm-checkbox-box is-indeterminate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="crm-checkbox-icon"><line x1="6" y1="12" x2="18" y2="12"/></svg></span>
+                    <span class="crm-checkbox-label">Indeterminate</span>
+                  </label>
+                  <label class="crm-switch text-xs text-main">
+                    <input type="checkbox" checked class="crm-switch-input" onchange="showToast('Auto-sync ' + (this.checked ? 'enabled' : 'paused') + '.', { tone: 'info' })" />
+                    <span aria-hidden="true" class="crm-switch-track"><span class="crm-switch-thumb"></span></span>
+                    <span>Two-way Sync</span>
+                  </label>
+                </div>
+
+                <div class="grid grid-cols-2 gap-2.5 pt-1">
+                  <label class="crm-radio-card">
+                    <input type="radio" name="uiKitDeliveryMode" value="dispatch" checked class="crm-radio-input" />
+                    <span aria-hidden="true" class="crm-radio-circle mt-0.5"><span class="crm-radio-dot"></span></span>
+                    <span>
+                      <span class="block font-semibold text-main">Direct Dispatch</span>
+                      <span class="block text-[11px] text-sub">Same-day Tema fleet</span>
+                    </span>
+                  </label>
+                  <label class="crm-radio-card">
+                    <input type="radio" name="uiKitDeliveryMode" value="pickup" class="crm-radio-input" />
+                    <span aria-hidden="true" class="crm-radio-circle mt-0.5"><span class="crm-radio-dot"></span></span>
+                    <span>
+                      <span class="block font-semibold text-main">Depot Pickup</span>
+                      <span class="block text-[11px] text-sub">Accra Central bay</span>
+                    </span>
+                  </label>
+                </div>
+
+                <div class="pt-1 space-y-1.5">
+                  <div class="flex items-center justify-between">
+                    <label class="font-medium text-body" for="uiKitRangeDemo">Win Probability Threshold</label>
+                    <span id="uiKitRangeValue" class="badge badge-info num-tabular">65%</span>
+                  </div>
+                  <input id="uiKitRangeDemo" type="range" min="0" max="100" value="65" oninput="document.getElementById('uiKitRangeValue').textContent = this.value + '%'" class="crm-range" />
+                </div>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+              <div class="crm-card p-5 space-y-3.5">
+                <div class="font-semibold text-main pb-2 border-b crm-border">Number Stepper, Search &amp; Context Menu</div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block font-medium text-body mb-1" for="uiKitNumberDemo">Custom Number Stepper</label>
+                    <input id="uiKitNumberDemo" type="number" min="1" max="500" step="5" value="25" class="crm-input w-full px-3 py-2 num-tabular" />
+                  </div>
+                  <div>
+                    <label class="block font-medium text-body mb-1" for="uiKitSearchDemo">Custom Search Clear</label>
+                    <input id="uiKitSearchDemo" type="search" value="Accra" placeholder="Type to see clear ×..." class="crm-input w-full px-3 py-2" />
+                  </div>
+                </div>
+                <div
+                  data-ctx-type="demo"
+                  data-ctx-id="DEMO-01"
+                  class="p-3.5 crm-subtle flex items-center justify-between gap-3 cursor-context-menu"
+                >
+                  <div>
+                    <div class="font-semibold text-main">Right-click this card (or any Deal / Table row)</div>
+                    <div class="text-[11px] text-sub">Opens the custom frosted context menu instead of browser chrome.</div>
+                  </div>
+                  <button type="button" onclick="openContextMenuForElement(this.parentElement, event)" class="btn-secondary px-2.5 py-1 text-[11px] shrink-0">Menu</button>
+                </div>
+              </div>
+
+              <div class="crm-card p-5 space-y-3">
+                <div class="font-semibold text-main pb-2 border-b crm-border">Custom File Dropzone</div>
+                <div
+                  id="uiKitDropzone"
+                  class="crm-dropzone space-y-1.5"
+                  onclick="document.getElementById('uiKitFileInput').click()"
+                  ondragover="event.preventDefault(); this.classList.add('is-dragover')"
+                  ondragleave="this.classList.remove('is-dragover')"
+                  ondrop="handleUiKitFileDrop(event)"
+                >
+                  <input id="uiKitFileInput" type="file" multiple class="hidden" onchange="handleUiKitFileSelect(this.files)" />
+                  <div class="font-medium text-main">Drop signed contract PDFs here or click to attach</div>
+                  <div class="text-[11px] text-sub">Replaces browser-default file input chrome with removable file chips.</div>
+                </div>
+                <div id="uiKitFileChips" class="flex flex-wrap gap-2"></div>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -2721,7 +3548,7 @@
   <!-- ========================================================================
        RIGHT SLIDE-OVER DRAWER 1: DEAL RECORD INSPECTOR
        ======================================================================== -->
-  <div id="dealInspectorBackdrop" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeDealInspector)">
+  <div id="dealInspectorBackdrop" class="hidden fixed inset-0 z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeDealInspector)">
     <div id="dealInspectorDrawerContent" class="w-full max-w-lg h-full flex flex-col shadow-2xl">
       <div class="flex-1 overflow-y-auto p-6 space-y-5">
         <!-- Drawer Header -->
@@ -2825,7 +3652,7 @@
   <!-- ========================================================================
        RIGHT SLIDE-OVER DRAWER: ACCOUNT INSPECTOR
        ======================================================================== -->
-  <div id="accountInspectorBackdrop" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeAccountInspector)">
+  <div id="accountInspectorBackdrop" class="hidden fixed inset-0 z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeAccountInspector)">
     <div id="accountInspectorDrawerContent" class="w-full max-w-lg h-full flex flex-col shadow-2xl">
       <div class="flex-1 overflow-y-auto p-6 space-y-5">
         <div class="flex items-start justify-between pb-4 border-b crm-border">
@@ -2914,7 +3741,7 @@
   <!-- ========================================================================
        RIGHT SLIDE-OVER DRAWER: CONTACT INSPECTOR
        ======================================================================== -->
-  <div id="contactInspectorBackdrop" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeContactInspector)">
+  <div id="contactInspectorBackdrop" class="hidden fixed inset-0 z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeContactInspector)">
     <div id="contactInspectorDrawerContent" class="w-full max-w-lg h-full flex flex-col shadow-2xl">
       <div class="flex-1 overflow-y-auto p-6 space-y-5">
         <div class="flex items-start justify-between pb-4 border-b crm-border">
@@ -3012,7 +3839,7 @@
   <!-- ========================================================================
        RIGHT SLIDE-OVER DRAWER: LEAD INSPECTOR
        ======================================================================== -->
-  <div id="leadInspectorBackdrop" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeLeadInspector)">
+  <div id="leadInspectorBackdrop" class="hidden fixed inset-0 z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeLeadInspector)">
     <div id="leadInspectorDrawerContent" class="w-full max-w-lg h-full flex flex-col shadow-2xl">
       <div class="flex-1 overflow-y-auto p-6 space-y-5">
         <div class="flex items-start justify-between pb-4 border-b crm-border">
@@ -3106,7 +3933,7 @@
   <!-- ========================================================================
        RIGHT SLIDE-OVER DRAWER: CONTRACT INSPECTOR
        ======================================================================== -->
-  <div id="contractInspectorBackdrop" class="hidden fixed inset-0 bg-slate-900/40 backdrop-blur-[1px] z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeContractInspector)">
+  <div id="contractInspectorBackdrop" class="hidden fixed inset-0 z-40 flex justify-end" onclick="closeOnBackdropClick(event, closeContractInspector)">
     <div id="contractInspectorDrawerContent" class="w-full max-w-lg h-full flex flex-col shadow-2xl">
       <div class="flex-1 overflow-y-auto p-6 space-y-5">
         <div class="flex items-start justify-between pb-4 border-b crm-border">
@@ -3434,7 +4261,7 @@
        RIGHT SLIDE-OVER DRAWER 2: WORKSPACE AUDIT LOG
        ======================================================================== -->
   <div id="auditDrawerBackdrop" class="hidden fixed inset-0 z-40 flex">
-    <div class="flex-1 bg-slate-900/40" onclick="toggleAuditDrawer()"></div>
+    <div class="crm-drawer-scrim" onclick="toggleAuditDrawer()"></div>
     <div id="auditDrawerPanel" class="w-full max-w-xl shrink-0 h-full border-l crm-border shadow-2xl">
       <div class="h-full overflow-y-auto p-6 flex flex-col justify-between">
       <div class="space-y-4">
@@ -4003,6 +4830,44 @@
       </div>
     </div>
   </div>
+
+  <!-- ========================================================================
+       CUSTOM SYSTEM DIALOG (Replaces Browser alert / confirm / prompt)
+       ======================================================================== -->
+  <div id="crmDialogBackdrop" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-[1px] z-[80] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="crmDialogTitle">
+    <div class="w-full max-w-md crm-card p-6 space-y-4">
+      <div class="flex items-start justify-between gap-3 pb-3 border-b crm-border">
+        <div class="flex items-start gap-2.5 min-w-0">
+          <span id="crmDialogBadge" class="badge badge-info shrink-0 mt-0.5">Notice</span>
+          <div class="min-w-0">
+            <h3 id="crmDialogTitle" class="text-base font-semibold text-main">Confirm action</h3>
+            <p id="crmDialogSubtitle" class="text-xs text-sub mt-0.5 hidden"></p>
+          </div>
+        </div>
+        <button type="button" id="crmDialogCloseX" class="btn-secondary p-1.5 text-sub hover:text-main shrink-0" aria-label="Close dialog">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-3 text-xs">
+        <p id="crmDialogMessage" class="text-body leading-relaxed"></p>
+        <div id="crmDialogPromptWrap" class="hidden">
+          <input id="crmDialogPromptInput" type="text" class="crm-input w-full px-3 py-2 text-xs" />
+        </div>
+      </div>
+      <div class="pt-3 border-t crm-border flex justify-end gap-2">
+        <button type="button" id="crmDialogCancelBtn" class="btn-secondary px-4 py-1.5 text-xs">Cancel</button>
+        <button type="button" id="crmDialogConfirmBtn" class="btn-primary px-4 py-1.5 text-xs">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       FLOATING TOAST STACK & CUSTOM CONTEXT MENU PORTALS
+       ======================================================================== -->
+  <div id="crmToastRegion" aria-live="polite" aria-atomic="false"></div>
+  <div id="customContextMenu" class="custom-context-portal hidden" role="menu"></div>
 
   <!-- ========================================================================
        APPLICATION STATE & VANILLA JAVASCRIPT LOGIC
@@ -4869,15 +5734,217 @@
       return now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     }
 
-    function showToast(msg) {
-      const banner = document.getElementById('toastBanner');
-      const text = document.getElementById('toastMessage');
-      text.textContent = msg;
-      banner.classList.remove('hidden');
+    function inferToastTone(msg) {
+      const text = String(msg || '').toLowerCase();
+      if (text.startsWith('cannot ') || text.includes('insufficient') || text.includes('required') || text.includes('already exists') || text.includes('no ') && text.includes('changes')) return 'warn';
+      if (text.includes('error') || text.includes('failed')) return 'danger';
+      if (text.startsWith('saved') || text.startsWith('created') || text.startsWith('converted') || text.startsWith('recorded') || text.startsWith('issued') || text.startsWith('added') || text.startsWith('confirmed') || text.startsWith('restored') || text.startsWith('transferred')) return 'success';
+      return 'info';
+    }
+
+    function showToast(msg, opts = {}) {
+      const region = document.getElementById('crmToastRegion');
+      if (!region) return;
+      const tone = opts.tone || inferToastTone(msg);
+      const duration = typeof opts.duration === 'number' ? opts.duration : 4200;
+
+      const toast = document.createElement('div');
+      toast.className = 'crm-toast';
+      toast.setAttribute('data-tone', tone);
+      toast.setAttribute('role', 'status');
+      toast.innerHTML = `
+        <span class="crm-toast-dot" aria-hidden="true"></span>
+        <span class="font-medium text-main flex-1 leading-snug">${escapeHtml(msg)}</span>
+        ${opts.actionLabel ? `<button type="button" class="text-[11px] font-semibold hover:underline shrink-0" style="color: var(--brand-text);">${escapeHtml(opts.actionLabel)}</button>` : ''}
+        <button type="button" class="text-sub hover:text-main p-0.5 rounded shrink-0" aria-label="Dismiss notification">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
+      `;
+
+      const dismiss = () => {
+        if (toast._leaving) return;
+        toast._leaving = true;
+        clearTimeout(toast._timer);
+        toast.classList.add('is-leaving');
+        setTimeout(() => toast.remove(), 170);
+      };
+
+      const buttons = toast.querySelectorAll('button');
+      if (opts.actionLabel && buttons.length > 1) {
+        buttons[0].addEventListener('click', () => {
+          opts.onAction?.();
+          dismiss();
+        });
+        buttons[1].addEventListener('click', dismiss);
+      } else if (buttons[0]) {
+        buttons[0].addEventListener('click', dismiss);
+      }
+
+      if (duration > 0) {
+        toast._timer = setTimeout(dismiss, duration);
+        toast.addEventListener('mouseenter', () => clearTimeout(toast._timer));
+        toast.addEventListener('mouseleave', () => {
+          toast._timer = setTimeout(dismiss, 1800);
+        });
+      }
+
+      while (region.children.length >= 4) {
+        region.firstElementChild.remove();
+      }
+      region.appendChild(toast);
     }
 
     function hideToast() {
-      document.getElementById('toastBanner').classList.add('hidden');
+      const region = document.getElementById('crmToastRegion');
+      if (region) region.innerHTML = '';
+    }
+
+    /* ------------------------------------------------------------------------
+       CUSTOM DIALOG ENGINE (Replaces Browser alert / confirm / prompt)
+       ------------------------------------------------------------------------ */
+    let activeDialogResolver = null;
+
+    function openCrmDialog({
+      mode = 'confirm',
+      title = 'Confirm action',
+      subtitle = '',
+      message = '',
+      tone = 'info',
+      badgeLabel = '',
+      confirmLabel = 'Confirm',
+      cancelLabel = 'Cancel',
+      placeholder = '',
+      defaultValue = '',
+      destructive = false,
+    }) {
+      return new Promise((resolve) => {
+        const backdrop = document.getElementById('crmDialogBackdrop');
+        if (!backdrop) {
+          resolve(mode === 'prompt' ? null : false);
+          return;
+        }
+        if (activeDialogResolver) {
+          activeDialogResolver(mode === 'prompt' ? null : false);
+          activeDialogResolver = null;
+        }
+
+        const badgeEl = document.getElementById('crmDialogBadge');
+        const titleEl = document.getElementById('crmDialogTitle');
+        const subEl = document.getElementById('crmDialogSubtitle');
+        const msgEl = document.getElementById('crmDialogMessage');
+        const promptWrap = document.getElementById('crmDialogPromptWrap');
+        const promptInput = document.getElementById('crmDialogPromptInput');
+        const cancelBtn = document.getElementById('crmDialogCancelBtn');
+        const confirmBtn = document.getElementById('crmDialogConfirmBtn');
+        const closeX = document.getElementById('crmDialogCloseX');
+
+        const badgeClassMap = {
+          info: 'badge-info',
+          success: 'badge-success',
+          warn: 'badge-warn',
+          danger: 'badge-danger',
+        };
+        const resolvedTone = destructive ? 'danger' : tone;
+        badgeEl.className = 'badge shrink-0 mt-0.5 ' + (badgeClassMap[resolvedTone] || 'badge-info');
+        badgeEl.textContent = badgeLabel || (destructive ? 'Confirm delete' : mode === 'alert' ? 'Notice' : mode === 'prompt' ? 'Input' : 'Confirm');
+        titleEl.textContent = title;
+        if (subtitle) {
+          subEl.textContent = subtitle;
+          subEl.classList.remove('hidden');
+        } else {
+          subEl.classList.add('hidden');
+        }
+        msgEl.textContent = message;
+
+        if (mode === 'prompt') {
+          promptWrap.classList.remove('hidden');
+          promptInput.placeholder = placeholder || '';
+          promptInput.value = defaultValue || '';
+        } else {
+          promptWrap.classList.add('hidden');
+          promptInput.value = '';
+        }
+
+        if (mode === 'alert') {
+          cancelBtn.classList.add('hidden');
+        } else {
+          cancelBtn.classList.remove('hidden');
+          cancelBtn.textContent = cancelLabel;
+        }
+
+        confirmBtn.textContent = confirmLabel;
+        confirmBtn.className = (destructive ? 'btn-danger' : 'btn-primary') + ' px-4 py-1.5 text-xs';
+
+        const finish = (result) => {
+          if (!activeDialogResolver) return;
+          const r = activeDialogResolver;
+          activeDialogResolver = null;
+          backdrop.classList.add('hidden');
+          backdrop.onclick = null;
+          cancelBtn.onclick = null;
+          confirmBtn.onclick = null;
+          closeX.onclick = null;
+          promptInput.onkeydown = null;
+          r(result);
+        };
+
+        activeDialogResolver = resolve;
+
+        cancelBtn.onclick = () => finish(mode === 'prompt' ? null : false);
+        closeX.onclick = () => finish(mode === 'prompt' ? null : mode === 'alert' ? true : false);
+        backdrop.onclick = (e) => {
+          if (e.target === backdrop) {
+            finish(mode === 'prompt' ? null : mode === 'alert' ? true : false);
+          }
+        };
+        confirmBtn.onclick = () => {
+          if (mode === 'prompt') {
+            finish(promptInput.value);
+          } else {
+            finish(true);
+          }
+        };
+        promptInput.onkeydown = (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            finish(promptInput.value);
+          }
+        };
+
+        backdrop.classList.remove('hidden');
+        setTimeout(() => {
+          if (mode === 'prompt') {
+            promptInput.focus();
+            promptInput.select();
+          } else {
+            confirmBtn.focus();
+          }
+        }, 20);
+      });
+    }
+
+    function closeActiveCrmDialog() {
+      const backdrop = document.getElementById('crmDialogBackdrop');
+      if (!backdrop || backdrop.classList.contains('hidden')) return false;
+      document.getElementById('crmDialogCloseX')?.click();
+      return true;
+    }
+
+    function crmAlert(opts) {
+      const cfg = typeof opts === 'string' ? { message: opts } : (opts || {});
+      return openCrmDialog({ mode: 'alert', confirmLabel: 'Got it', ...cfg });
+    }
+
+    function crmConfirm(opts) {
+      const cfg = typeof opts === 'string' ? { message: opts } : (opts || {});
+      return openCrmDialog({ mode: 'confirm', ...cfg });
+    }
+
+    function crmPrompt(opts) {
+      const cfg = typeof opts === 'string' ? { message: opts } : (opts || {});
+      return openCrmDialog({ mode: 'prompt', confirmLabel: 'Submit', ...cfg });
     }
 
     function writeAudit(actor, actorKind, record, field, oldVal, newVal) {
@@ -5010,62 +6077,84 @@
     }
 
     /* ------------------------------------------------------------------------
-       CUSTOM 30% TRANSLUCENT DROPDOWN ENGINE (Replaces Native <select>)
+       CUSTOM TRANSLUCENT DROPDOWN ENGINE (Replaces Native <select>, Keyboard + Search)
        ------------------------------------------------------------------------ */
     let activeCustomSelect = null;
     let customPortalEl = null;
+    let customSelectActiveIndex = -1;
+    let customSelectVisibleIndices = [];
 
     function ensureCustomDropdownPortal() {
       if (!customPortalEl) {
         customPortalEl = document.createElement('div');
         customPortalEl.id = 'customDropdownPortal';
         customPortalEl.className = 'custom-select-portal hidden';
+        customPortalEl.setAttribute('role', 'listbox');
         document.body.appendChild(customPortalEl);
       }
       return customPortalEl;
     }
 
-    function closeCustomDropdown() {
+    function closeCustomDropdown(restoreFocus = false) {
       if (customPortalEl) {
         customPortalEl.classList.add('hidden');
+        customPortalEl.classList.remove('relation-picker-portal');
       }
       if (activeCustomSelect && activeCustomSelect._triggerBtn) {
         activeCustomSelect._triggerBtn.classList.remove('is-open');
+        activeCustomSelect._triggerBtn.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) activeCustomSelect._triggerBtn.focus();
       }
       activeCustomSelect = null;
+      customSelectActiveIndex = -1;
+      customSelectVisibleIndices = [];
     }
 
     function syncCustomSelectButton(selectEl) {
-      const btn = selectEl._triggerBtn;
+      const btn = selectEl?._triggerBtn;
       if (!btn) return;
       const selectedOpt = selectEl.options[selectEl.selectedIndex] || selectEl.options[0];
       const labelSpan = btn.querySelector('.custom-select-label');
-      const nextText = selectedOpt ? selectedOpt.textContent.trim() : '';
+      const nextText = selectedOpt ? selectedOpt.textContent.trim() : 'Select...';
       if (labelSpan && labelSpan.textContent !== nextText) {
         labelSpan.textContent = nextText;
       }
+      btn.disabled = Boolean(selectEl.disabled);
     }
 
-    function openCustomDropdownFor(selectEl) {
+    function renderCustomDropdownOptions(selectEl, query = '') {
       const portal = ensureCustomDropdownPortal();
-      const btn = selectEl._triggerBtn;
-      if (!btn) return;
+      const listHost = portal.querySelector('.relation-picker-list') || portal;
+      const options = Array.from(selectEl.options);
+      const q = query.trim().toLowerCase();
+      const matches = [];
 
-      if (activeCustomSelect === selectEl && !portal.classList.contains('hidden')) {
-        closeCustomDropdown();
+      options.forEach((opt, idx) => {
+        const text = opt.textContent.trim();
+        if (!q || text.toLowerCase().includes(q)) {
+          matches.push({ opt, idx, text });
+        }
+      });
+
+      customSelectVisibleIndices = matches.map(m => m.idx);
+      if (!matches.length) {
+        customSelectActiveIndex = -1;
+        listHost.innerHTML = '<div class="custom-select-empty">No matching options</div>';
         return;
       }
 
-      closeCustomDropdown();
-      activeCustomSelect = selectEl;
-      btn.classList.add('is-open');
+      if (!customSelectVisibleIndices.includes(customSelectActiveIndex)) {
+        customSelectActiveIndex = customSelectVisibleIndices.includes(selectEl.selectedIndex)
+          ? selectEl.selectedIndex
+          : customSelectVisibleIndices[0];
+      }
 
-      const options = Array.from(selectEl.options);
-      portal.innerHTML = options.map((opt, idx) => {
+      listHost.innerHTML = matches.map(({ opt, idx, text }) => {
         const isSelected = idx === selectEl.selectedIndex;
+        const isActive = idx === customSelectActiveIndex;
         return `
-          <button type="button" data-opt-idx="${idx}" class="custom-select-option ${isSelected ? 'is-selected' : ''}">
-            <span class="truncate">${opt.textContent}</span>
+          <button type="button" role="option" aria-selected="${isSelected}" ${opt.disabled ? 'disabled' : ''} data-opt-idx="${idx}" class="custom-select-option ${isSelected ? 'is-selected' : ''} ${isActive ? 'is-active' : ''}">
+            <span class="truncate">${escapeHtml(text)}</span>
             ${isSelected ? `
               <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"/>
@@ -5075,27 +6164,80 @@
         `;
       }).join('');
 
-      portal.querySelectorAll('.custom-select-option').forEach(optBtn => {
+      listHost.querySelectorAll('.custom-select-option').forEach(optBtn => {
         optBtn.addEventListener('click', (ev) => {
           ev.stopPropagation();
+          if (optBtn.disabled) return;
           const idx = parseInt(optBtn.getAttribute('data-opt-idx'), 10);
-          if (selectEl.selectedIndex !== idx) {
-            selectEl.selectedIndex = idx;
-            selectEl.value = selectEl.options[idx].value;
-            syncCustomSelectButton(selectEl);
-            selectEl.dispatchEvent(new Event('change', { bubbles: true }));
-          }
-          closeCustomDropdown();
+          selectCustomOptionByIndex(selectEl, idx);
         });
       });
+
+      const activeBtn = listHost.querySelector(`.custom-select-option[data-opt-idx="${customSelectActiveIndex}"]`);
+      activeBtn?.scrollIntoView({ block: 'nearest' });
+    }
+
+    function selectCustomOptionByIndex(selectEl, idx) {
+      if (!selectEl || idx < 0 || idx >= selectEl.options.length) return;
+      if (selectEl.selectedIndex !== idx) {
+        selectEl.selectedIndex = idx;
+        selectEl.value = selectEl.options[idx].value;
+        syncCustomSelectButton(selectEl);
+        selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      closeCustomDropdown(true);
+    }
+
+    function openCustomDropdownFor(selectEl) {
+      if (selectEl.disabled) return;
+      closeCustomDatePicker();
+      closeContextMenu();
+      const portal = ensureCustomDropdownPortal();
+      const btn = selectEl._triggerBtn;
+      if (!btn) return;
+
+      if (activeCustomSelect === selectEl && !portal.classList.contains('hidden')) {
+        closeCustomDropdown(true);
+        return;
+      }
+
+      closeCustomDropdown();
+      activeCustomSelect = selectEl;
+      btn.classList.add('is-open');
+      btn.setAttribute('aria-expanded', 'true');
+
+      const options = Array.from(selectEl.options);
+      const isSearchable = selectEl.dataset.searchable === 'true' || options.length >= 7;
+      customSelectActiveIndex = selectEl.selectedIndex >= 0 ? selectEl.selectedIndex : 0;
+
+      if (isSearchable) {
+        portal.classList.add('relation-picker-portal');
+        portal.innerHTML = `
+          <div class="custom-select-search-wrap">
+            <input type="text" class="crm-input w-full px-2.5 py-1.5 text-xs" placeholder="Filter options..." aria-label="Filter options" />
+          </div>
+          <div class="relation-picker-list"></div>
+        `;
+        const filterInp = portal.querySelector('input');
+        filterInp.addEventListener('input', (e) => {
+          renderCustomDropdownOptions(selectEl, e.target.value);
+        });
+        filterInp.addEventListener('click', (e) => e.stopPropagation());
+        renderCustomDropdownOptions(selectEl, '');
+        setTimeout(() => filterInp.focus(), 10);
+      } else {
+        portal.classList.remove('relation-picker-portal');
+        portal.innerHTML = '';
+        renderCustomDropdownOptions(selectEl, '');
+      }
 
       portal.classList.remove('hidden');
 
       const rect = btn.getBoundingClientRect();
-      const minW = Math.max(rect.width, 165);
-      portal.style.width = `${minW}px`;
+      const minW = Math.max(rect.width, isSearchable ? 240 : 175);
+      portal.style.width = `${Math.min(window.innerWidth - 16, minW)}px`;
 
-      const portalHeight = portal.offsetHeight || 180;
+      const portalHeight = portal.offsetHeight || (isSearchable ? 260 : 180);
       const spaceBelow = window.innerHeight - rect.bottom - 12;
       let topPos = rect.bottom + 6;
       if (spaceBelow < portalHeight && rect.top > portalHeight) {
@@ -5121,6 +6263,8 @@
 
       const btn = document.createElement('button');
       btn.type = 'button';
+      btn.setAttribute('aria-haspopup', 'listbox');
+      btn.setAttribute('aria-expanded', 'false');
 
       const widthClasses = [];
       if (selectEl.classList.contains('w-full')) widthClasses.push('w-full');
@@ -5144,9 +6288,29 @@
       selectEl.parentNode.insertBefore(btn, selectEl.nextSibling);
       syncCustomSelectButton(selectEl);
 
+      // Keep custom trigger in sync whenever JS assigns selectEl.value or mutates <option>s
+      const valDesc = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value');
+      if (valDesc && valDesc.configurable) {
+        Object.defineProperty(selectEl, 'value', {
+          get() { return valDesc.get.call(this); },
+          set(v) {
+            valDesc.set.call(this, v);
+            syncCustomSelectButton(this);
+          }
+        });
+      }
+      const mo = new MutationObserver(() => syncCustomSelectButton(selectEl));
+      mo.observe(selectEl, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled'] });
+
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
         openCustomDropdownFor(selectEl);
+      });
+      btn.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === ' ' || e.key === 'Enter') {
+          e.preventDefault();
+          openCustomDropdownFor(selectEl);
+        }
       });
     }
 
@@ -5155,6 +6319,677 @@
         enhanceSelectElement(sel);
         syncCustomSelectButton(sel);
       });
+      enhanceAllCustomControls();
+    }
+
+    /* ------------------------------------------------------------------------
+       CUSTOM TRANSLUCENT DATE PICKER ENGINE (Date-Only, Mirrors Main App)
+       ------------------------------------------------------------------------ */
+    const DP_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const DP_MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const DP_WEEKDAYS = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'];
+
+    let activeDateInput = null;
+    let datePortalEl = null;
+    let dpViewYear = 2026;
+    let dpViewMonth = 10;
+    let dpYearMode = false;
+
+    function dpPad2(n) { return String(n).padStart(2, '0'); }
+
+    function dpParseIso(raw) {
+      if (!raw || typeof raw !== 'string') return null;
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw.trim());
+      if (!m) return null;
+      const year = Number(m[1]);
+      const month = Number(m[2]) - 1;
+      const day = Number(m[3]);
+      const probe = new Date(year, month, day);
+      if (probe.getFullYear() !== year || probe.getMonth() !== month || probe.getDate() !== day) return null;
+      return { year, month, day, dateStr: `${m[1]}-${m[2]}-${m[3]}` };
+    }
+
+    function dpToIso(year, month, day) {
+      return `${year}-${dpPad2(month + 1)}-${dpPad2(day)}`;
+    }
+
+    function dpFormatLabel(raw) {
+      const p = dpParseIso(raw);
+      if (!p) return 'Select date';
+      return `${dpPad2(p.day)} ${DP_MONTH_SHORT[p.month]} ${p.year}`;
+    }
+
+    function dpAddDaysIso(days) {
+      const base = dpParseIso(activeDateInput?.value) || (() => {
+        const now = new Date();
+        return { year: now.getFullYear(), month: now.getMonth(), day: now.getDate() };
+      })();
+      const d = new Date(base.year, base.month, base.day + days);
+      return dpToIso(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+
+    function ensureDatePortal() {
+      if (!datePortalEl) {
+        datePortalEl = document.createElement('div');
+        datePortalEl.id = 'customDatePickerPortal';
+        datePortalEl.className = 'custom-datepicker-portal hidden space-y-2.5';
+        datePortalEl.setAttribute('role', 'dialog');
+        datePortalEl.setAttribute('aria-label', 'Choose date');
+        document.body.appendChild(datePortalEl);
+      }
+      return datePortalEl;
+    }
+
+    function closeCustomDatePicker(restoreFocus = false) {
+      if (datePortalEl) datePortalEl.classList.add('hidden');
+      if (activeDateInput && activeDateInput._dateTrigger) {
+        activeDateInput._dateTrigger.classList.remove('is-open');
+        activeDateInput._dateTrigger.setAttribute('aria-expanded', 'false');
+        if (restoreFocus) activeDateInput._dateTrigger.focus();
+      }
+      activeDateInput = null;
+      dpYearMode = false;
+    }
+
+    function syncCustomDateTrigger(inputEl) {
+      const btn = inputEl?._dateTrigger;
+      const clearBtn = inputEl?._dateClearBtn;
+      if (!btn) return;
+      const parsed = dpParseIso(inputEl.value);
+      const labelSpan = btn.querySelector('.custom-date-label');
+      if (labelSpan) {
+        labelSpan.textContent = parsed ? dpFormatLabel(parsed.dateStr) : 'Select date';
+        labelSpan.className = `custom-date-label truncate num-tabular ${parsed ? 'text-main' : 'text-sub'}`;
+      }
+      if (clearBtn) {
+        const showClear = Boolean(parsed) && !inputEl.disabled && !inputEl.required;
+        clearBtn.classList.toggle('hidden', !showClear);
+        btn.classList.toggle('has-clear', showClear);
+      }
+      btn.disabled = Boolean(inputEl.disabled);
+    }
+
+    function setDateInputValue(inputEl, isoVal, closeAfter = true) {
+      if (!inputEl) return;
+      inputEl.value = isoVal;
+      syncCustomDateTrigger(inputEl);
+      inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+      inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+      if (closeAfter) closeCustomDatePicker(true);
+    }
+
+    function renderDatePickerPortal() {
+      if (!activeDateInput) return;
+      const portal = ensureDatePortal();
+      const parsed = dpParseIso(activeDateInput.value);
+      const now = new Date();
+      const todayIso = dpToIso(now.getFullYear(), now.getMonth(), now.getDate());
+      const minStr = dpParseIso(activeDateInput.min)?.dateStr || '';
+      const maxStr = dpParseIso(activeDateInput.max)?.dateStr || '';
+      const isBlocked = (dStr) => (minStr && dStr < minStr) || (maxStr && dStr > maxStr);
+
+      const anchor = Math.floor(dpViewYear / 12) * 12;
+      const yearChoices = Array.from({ length: 12 }, (_, idx) => anchor + idx - 4);
+
+      let gridHtml = '';
+      if (dpYearMode) {
+        gridHtml = `
+          <div class="grid grid-cols-3 gap-1.5 py-1">
+            ${yearChoices.map(yr => `
+              <button type="button" data-dp-year="${yr}" class="py-2 rounded-lg text-xs font-medium num-tabular transition-colors ${yr === dpViewYear ? 'btn-primary' : 'text-main crm-hover'}">${yr}</button>
+            `).join('')}
+          </div>
+        `;
+      } else {
+        const firstDay = new Date(dpViewYear, dpViewMonth, 1);
+        const startOffset = (firstDay.getDay() + 6) % 7;
+        const daysInMonth = new Date(dpViewYear, dpViewMonth + 1, 0).getDate();
+        const prevMonthDays = new Date(dpViewYear, dpViewMonth, 0).getDate();
+        const cells = [];
+
+        for (let i = startOffset - 1; i >= 0; i -= 1) {
+          const prevDate = new Date(dpViewYear, dpViewMonth - 1, prevMonthDays - i);
+          cells.push({
+            day: prevDate.getDate(),
+            inMonth: false,
+            dateStr: dpToIso(prevDate.getFullYear(), prevDate.getMonth(), prevDate.getDate())
+          });
+        }
+        for (let d = 1; d <= daysInMonth; d += 1) {
+          cells.push({ day: d, inMonth: true, dateStr: dpToIso(dpViewYear, dpViewMonth, d) });
+        }
+        while (cells.length < 42) {
+          const idx = cells.length - (startOffset + daysInMonth) + 1;
+          const nextDate = new Date(dpViewYear, dpViewMonth + 1, idx);
+          cells.push({
+            day: nextDate.getDate(),
+            inMonth: false,
+            dateStr: dpToIso(nextDate.getFullYear(), nextDate.getMonth(), nextDate.getDate())
+          });
+        }
+
+        gridHtml = `
+          <div class="grid grid-cols-7 gap-1 text-center">
+            ${DP_WEEKDAYS.map(w => `<div class="text-[10px] font-semibold uppercase tracking-wider text-sub py-0.5">${w}</div>`).join('')}
+          </div>
+          <div class="grid grid-cols-7 gap-1">
+            ${cells.map(c => {
+              const isSelected = parsed?.dateStr === c.dateStr;
+              const isToday = todayIso === c.dateStr;
+              const blocked = isBlocked(c.dateStr);
+              return `<button type="button" data-dp-date="${c.dateStr}" ${blocked ? 'disabled' : ''} class="dp-day-btn ${isSelected ? 'is-selected' : ''} ${isToday ? 'is-today' : ''} ${c.inMonth ? '' : 'is-outside'}">${c.day}</button>`;
+            }).join('')}
+          </div>
+        `;
+      }
+
+      portal.innerHTML = `
+        <div class="flex items-center justify-between gap-1">
+          <button type="button" data-dp-nav="prev" aria-label="${dpYearMode ? 'Previous years' : 'Previous month'}" class="btn-secondary p-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <button type="button" data-dp-toggle-year="1" class="px-2 py-1 rounded-lg text-xs font-semibold text-main crm-hover num-tabular">
+            ${dpYearMode ? `${yearChoices[0]} - ${yearChoices[yearChoices.length - 1]}` : `${DP_MONTH_NAMES[dpViewMonth]} ${dpViewYear}`}
+          </button>
+          <button type="button" data-dp-nav="next" aria-label="${dpYearMode ? 'Next years' : 'Next month'}" class="btn-secondary p-1.5">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+        ${gridHtml}
+        <div class="pt-2 border-t crm-border flex items-center justify-between gap-1.5">
+          <div class="flex items-center gap-1 flex-wrap">
+            <button type="button" data-dp-preset="today" ${isBlocked(todayIso) ? 'disabled' : ''} class="dp-quick-chip">Today</button>
+            <button type="button" data-dp-preset="plus7" class="dp-quick-chip">+7d</button>
+            <button type="button" data-dp-preset="plus30" class="dp-quick-chip">+30d</button>
+            ${parsed && !activeDateInput.required ? '<button type="button" data-dp-preset="clear" class="text-[11px] font-medium text-sub hover:text-main px-1">Clear</button>' : ''}
+          </div>
+          <button type="button" data-dp-done="1" class="btn-primary px-2.5 py-1 text-[11px] shrink-0">Done</button>
+        </div>
+      `;
+
+      portal.querySelector('[data-dp-nav="prev"]').onclick = (e) => {
+        e.stopPropagation();
+        if (dpYearMode) dpViewYear -= 12;
+        else {
+          const d = new Date(dpViewYear, dpViewMonth - 1, 1);
+          dpViewYear = d.getFullYear();
+          dpViewMonth = d.getMonth();
+        }
+        renderDatePickerPortal();
+      };
+      portal.querySelector('[data-dp-nav="next"]').onclick = (e) => {
+        e.stopPropagation();
+        if (dpYearMode) dpViewYear += 12;
+        else {
+          const d = new Date(dpViewYear, dpViewMonth + 1, 1);
+          dpViewYear = d.getFullYear();
+          dpViewMonth = d.getMonth();
+        }
+        renderDatePickerPortal();
+      };
+      portal.querySelector('[data-dp-toggle-year]').onclick = (e) => {
+        e.stopPropagation();
+        dpYearMode = !dpYearMode;
+        renderDatePickerPortal();
+      };
+      portal.querySelectorAll('[data-dp-year]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          dpViewYear = Number(btn.getAttribute('data-dp-year'));
+          dpYearMode = false;
+          renderDatePickerPortal();
+        };
+      });
+      portal.querySelectorAll('[data-dp-date]').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          if (!btn.disabled) setDateInputValue(activeDateInput, btn.getAttribute('data-dp-date'), true);
+        };
+      });
+      portal.querySelector('[data-dp-preset="today"]').onclick = (e) => {
+        e.stopPropagation();
+        if (!isBlocked(todayIso)) setDateInputValue(activeDateInput, todayIso, true);
+      };
+      portal.querySelector('[data-dp-preset="plus7"]').onclick = (e) => {
+        e.stopPropagation();
+        const iso = dpAddDaysIso(7);
+        if (!isBlocked(iso)) setDateInputValue(activeDateInput, iso, true);
+      };
+      portal.querySelector('[data-dp-preset="plus30"]').onclick = (e) => {
+        e.stopPropagation();
+        const iso = dpAddDaysIso(30);
+        if (!isBlocked(iso)) setDateInputValue(activeDateInput, iso, true);
+      };
+      const clearChip = portal.querySelector('[data-dp-preset="clear"]');
+      if (clearChip) {
+        clearChip.onclick = (e) => {
+          e.stopPropagation();
+          setDateInputValue(activeDateInput, '', true);
+        };
+      }
+      portal.querySelector('[data-dp-done]').onclick = (e) => {
+        e.stopPropagation();
+        closeCustomDatePicker(true);
+      };
+    }
+
+    function openCustomDatePickerFor(inputEl) {
+      if (!inputEl || inputEl.disabled) return;
+      closeCustomDropdown();
+      closeContextMenu();
+      const portal = ensureDatePortal();
+
+      if (activeDateInput === inputEl && !portal.classList.contains('hidden')) {
+        closeCustomDatePicker(true);
+        return;
+      }
+
+      closeCustomDatePicker();
+      activeDateInput = inputEl;
+      dpYearMode = false;
+
+      const parsed = dpParseIso(inputEl.value);
+      const now = new Date();
+      dpViewYear = parsed ? parsed.year : now.getFullYear();
+      dpViewMonth = parsed ? parsed.month : now.getMonth();
+
+      inputEl._dateTrigger?.classList.add('is-open');
+      inputEl._dateTrigger?.setAttribute('aria-expanded', 'true');
+
+      renderDatePickerPortal();
+      portal.classList.remove('hidden');
+
+      const rect = inputEl._dateTrigger.getBoundingClientRect();
+      const popWidth = 288;
+      const estHeight = 324;
+      const openAbove = rect.bottom + estHeight + 10 > window.innerHeight && rect.top > estHeight + 10;
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - popWidth - 8));
+      const top = openAbove
+        ? Math.max(8, rect.top - estHeight - 6)
+        : Math.min(rect.bottom + 6, Math.max(8, window.innerHeight - estHeight - 8));
+      portal.style.top = `${top}px`;
+      portal.style.left = `${left}px`;
+    }
+
+    function enhanceDateInput(inputEl) {
+      if (!inputEl || inputEl.dataset.customDateEnhanced === 'true') {
+        if (inputEl?._dateTrigger) syncCustomDateTrigger(inputEl);
+        return;
+      }
+      inputEl.dataset.customDateEnhanced = 'true';
+      inputEl.classList.add('custom-date-hidden');
+
+      const wrap = document.createElement('div');
+      wrap.className = 'custom-date-wrap';
+
+      const padClasses = [];
+      ['py-1', 'py-1.5', 'py-2'].forEach(cls => {
+        if (inputEl.classList.contains(cls)) padClasses.push(cls);
+      });
+      if (!padClasses.length) padClasses.push('py-2');
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.setAttribute('aria-haspopup', 'dialog');
+      btn.setAttribute('aria-expanded', 'false');
+      btn.className = `custom-select-trigger custom-date-trigger w-full ${padClasses.join(' ')}`;
+      btn.innerHTML = '<span class="custom-date-label truncate num-tabular"></span>';
+
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('class', 'custom-date-icon');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '2');
+      icon.setAttribute('stroke-linecap', 'round');
+      icon.setAttribute('stroke-linejoin', 'round');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>';
+
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'custom-date-clear hidden';
+      clearBtn.setAttribute('aria-label', 'Clear date');
+      clearBtn.innerHTML = '<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+      wrap.appendChild(btn);
+      wrap.appendChild(icon);
+      wrap.appendChild(clearBtn);
+
+      inputEl._dateTrigger = btn;
+      inputEl._dateClearBtn = clearBtn;
+      inputEl.parentNode.insertBefore(wrap, inputEl.nextSibling);
+
+      const valDesc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      if (valDesc && valDesc.configurable) {
+        Object.defineProperty(inputEl, 'value', {
+          get() { return valDesc.get.call(this); },
+          set(v) {
+            valDesc.set.call(this, v);
+            syncCustomDateTrigger(this);
+          }
+        });
+      }
+
+      syncCustomDateTrigger(inputEl);
+
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openCustomDatePickerFor(inputEl);
+      });
+      clearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setDateInputValue(inputEl, '', activeDateInput === inputEl);
+      });
+    }
+
+    /* ------------------------------------------------------------------------
+       CUSTOM CHECKBOX, NUMBER STEPPER & SEARCH INPUT ENHANCERS
+       ------------------------------------------------------------------------ */
+    function enhanceCheckboxInput(cb) {
+      if (!cb || cb.dataset.customCheckboxEnhanced === 'true') return;
+      if (cb.classList.contains('crm-checkbox-input') || cb.classList.contains('crm-switch-input')) {
+        cb.dataset.customCheckboxEnhanced = 'true';
+        return;
+      }
+      cb.dataset.customCheckboxEnhanced = 'true';
+      cb.classList.add('crm-checkbox-input');
+
+      const box = document.createElement('span');
+      box.setAttribute('aria-hidden', 'true');
+      box.className = 'crm-checkbox-box';
+      box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="crm-checkbox-icon"><polyline points="20 6 9 17 4 12"/></svg>';
+
+      const parentLabel = cb.closest('label');
+      if (parentLabel) {
+        parentLabel.classList.add('crm-checkbox');
+        const holder = document.createElement('span');
+        holder.className = 'relative inline-flex items-center shrink-0';
+        cb.parentNode.insertBefore(holder, cb);
+        holder.appendChild(cb);
+        holder.appendChild(box);
+      } else {
+        const label = document.createElement('label');
+        label.className = 'crm-checkbox';
+        cb.parentNode.insertBefore(label, cb);
+        label.appendChild(cb);
+        label.appendChild(box);
+      }
+    }
+
+    function enhanceNumberInput(inp) {
+      if (!inp || inp.dataset.customNumberEnhanced === 'true' || inp.dataset.noStepper === 'true') return;
+      inp.dataset.customNumberEnhanced = 'true';
+
+      const isCompact = inp.classList.contains('w-16');
+      const wrap = document.createElement('div');
+      wrap.className = 'crm-number-wrap ' + (isCompact ? 'w-20 is-compact' : 'w-full');
+      if (isCompact) inp.classList.remove('w-16');
+      inp.classList.add('w-full');
+
+      inp.parentNode.insertBefore(wrap, inp);
+      wrap.appendChild(inp);
+
+      const controls = document.createElement('div');
+      controls.className = 'crm-number-controls';
+
+      const stepVal = () => {
+        const s = parseFloat(inp.step);
+        return Number.isFinite(s) && s > 0 ? s : 1;
+      };
+      const decimals = () => {
+        const str = String(inp.step || '');
+        const dot = str.indexOf('.');
+        return dot >= 0 ? str.length - dot - 1 : 0;
+      };
+      const bump = (dir) => {
+        const cur = parseFloat(inp.value);
+        const base = Number.isFinite(cur) ? cur : (parseFloat(inp.min) || 0);
+        let next = base + dir * stepVal();
+        const minV = inp.min !== '' ? parseFloat(inp.min) : -Infinity;
+        const maxV = inp.max !== '' ? parseFloat(inp.max) : Infinity;
+        next = Math.min(maxV, Math.max(minV, next));
+        const d = decimals();
+        inp.value = d > 0 ? next.toFixed(d) : String(Math.round(next * 1000) / 1000);
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+
+      const decBtn = document.createElement('button');
+      decBtn.type = 'button';
+      decBtn.className = 'crm-number-btn';
+      decBtn.setAttribute('aria-label', 'Decrease value');
+      decBtn.textContent = isCompact ? '▾' : '−';
+      decBtn.onclick = () => bump(-1);
+
+      const incBtn = document.createElement('button');
+      incBtn.type = 'button';
+      incBtn.className = 'crm-number-btn';
+      incBtn.setAttribute('aria-label', 'Increase value');
+      incBtn.textContent = isCompact ? '▴' : '+';
+      incBtn.onclick = () => bump(1);
+
+      if (isCompact) {
+        controls.appendChild(incBtn);
+        controls.appendChild(decBtn);
+      } else {
+        controls.appendChild(decBtn);
+        controls.appendChild(incBtn);
+      }
+      wrap.appendChild(controls);
+    }
+
+    function enhanceSearchInput(inp) {
+      if (!inp || inp.dataset.customSearchEnhanced === 'true') return;
+      inp.dataset.customSearchEnhanced = 'true';
+
+      const wrap = document.createElement('div');
+      const widthCls = inp.classList.contains('w-full') ? 'w-full' : inp.classList.contains('w-44') ? 'w-44' : 'w-44';
+      wrap.className = `crm-search-wrap ${widthCls}`;
+      inp.classList.remove('w-44');
+      inp.classList.add('w-full');
+
+      inp.parentNode.insertBefore(wrap, inp);
+      wrap.appendChild(inp);
+
+      const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      icon.setAttribute('class', 'crm-search-icon');
+      icon.setAttribute('viewBox', '0 0 24 24');
+      icon.setAttribute('fill', 'none');
+      icon.setAttribute('stroke', 'currentColor');
+      icon.setAttribute('stroke-width', '2');
+      icon.setAttribute('aria-hidden', 'true');
+      icon.innerHTML = '<circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>';
+
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.className = 'crm-search-clear hidden';
+      clearBtn.setAttribute('aria-label', 'Clear search');
+      clearBtn.innerHTML = '<svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+
+      const syncClear = () => clearBtn.classList.toggle('hidden', !inp.value);
+      inp.addEventListener('input', syncClear);
+      clearBtn.addEventListener('click', () => {
+        inp.value = '';
+        syncClear();
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.focus();
+      });
+
+      wrap.appendChild(icon);
+      wrap.appendChild(clearBtn);
+      syncClear();
+    }
+
+    function enhanceAllCustomControls() {
+      document.querySelectorAll('input[type="date"].crm-input').forEach(enhanceDateInput);
+      document.querySelectorAll('input[type="checkbox"]').forEach(enhanceCheckboxInput);
+      document.querySelectorAll('input[type="number"].crm-input').forEach(enhanceNumberInput);
+      document.querySelectorAll('input[type="search"].crm-input').forEach(enhanceSearchInput);
+    }
+
+    /* ------------------------------------------------------------------------
+       CUSTOM RIGHT-CLICK CONTEXT MENU ENGINE
+       ------------------------------------------------------------------------ */
+    function closeContextMenu() {
+      const menu = document.getElementById('customContextMenu');
+      if (menu) menu.classList.add('hidden');
+    }
+
+    function openContextMenuForElement(hostEl, event) {
+      if (!hostEl) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closeCustomDropdown();
+      closeCustomDatePicker();
+
+      const type = hostEl.getAttribute('data-ctx-type');
+      const id = hostEl.getAttribute('data-ctx-id');
+      const menu = document.getElementById('customContextMenu');
+      if (!menu || !type || !id) return;
+
+      const items = [];
+      if (type === 'demo') {
+        items.push({ label: 'Inspect Demo Record', badge: 'DEMO-01', onClick: () => showToast('Inspected demo record DEMO-01.', { tone: 'info' }) });
+        items.push({ label: 'Copy Reference ID', onClick: () => { navigator.clipboard?.writeText(id); showToast('Copied ' + id + ' to clipboard.', { tone: 'success' }); } });
+        items.push({ label: 'Add Quick Note...', onClick: async () => {
+          const note = await crmPrompt({ title: 'Quick Note', message: 'Attach an internal note to DEMO-01:', placeholder: 'Follow up with Tema Port team...' });
+          if (note && note.trim()) showToast('Logged note: "' + note.trim() + '"', { tone: 'success' });
+        }});
+        items.push({ divider: true });
+        items.push({ label: 'Test Delete Prompt', danger: true, onClick: async () => {
+          const ok = await crmConfirm({ title: 'Delete demo item?', message: 'This tests the custom destructive confirmation modal.', destructive: true, confirmLabel: 'Delete' });
+          if (ok) showToast('Confirmed destructive action on DEMO-01.', { tone: 'warn' });
+        }});
+      } else {
+        const inspectMap = {
+          deal: openDealInspector,
+          account: openAccountInspector,
+          contact: openContactInspector,
+          lead: openLeadInspector,
+          contract: openContractInspector,
+          ticket: openTicketInspector,
+          campaign: openCampaignInspector,
+          automation: openAutomationInspector,
+          inspection: openInspectionInspector,
+        };
+        const openFn = inspectMap[type];
+        items.push({ label: 'Open Inspector', badge: id, onClick: () => openFn?.(id) });
+        items.push({ label: 'Copy Record ID', onClick: () => {
+          navigator.clipboard?.writeText(id);
+          showToast('Copied ' + id + ' to clipboard.', { tone: 'success' });
+        }});
+        items.push({ label: 'Log Quick Note...', onClick: async () => {
+          const note = await crmPrompt({ title: 'Log Quick Note', subtitle: id, message: 'Add a quick note to this ' + type + ' timeline:', placeholder: 'Called customer regarding delivery...' });
+          if (!note || !note.trim()) return;
+          const collectionMap = {
+            deal: state.deals,
+            account: state.accounts,
+            contact: state.contacts,
+            lead: state.leads,
+            contract: state.contracts,
+            ticket: state.tickets,
+            campaign: state.campaigns,
+            automation: state.automations,
+            inspection: state.inspections,
+          };
+          const rec = (collectionMap[type] || []).find(r => r.id === id);
+          if (rec && Array.isArray(rec.activities)) {
+            rec.activities.unshift({ type: 'Note', text: note.trim(), time: getCurrentTimeLabel() });
+            writeAudit(currentActorName(), 'Team Member', rec.title || rec.name || rec.site || id, 'Logged Note', '—', note.trim().slice(0, 36));
+            showToast('Logged note on ' + id + '.', { tone: 'success' });
+          }
+        }});
+        if (type !== 'deal') {
+          items.push({ divider: true });
+          items.push({ label: 'Delete ' + type.charAt(0).toUpperCase() + type.slice(1), danger: true, onClick: () => {
+            openFn?.(id);
+            const delMap = {
+              account: deleteAccountRecord,
+              contact: deleteContactRecord,
+              lead: deleteLeadRecord,
+              contract: deleteContractRecord,
+              ticket: deleteTicketRecord,
+              campaign: deleteCampaignRecord,
+              automation: deleteAutomationRecord,
+              inspection: deleteInspectionRecord,
+            };
+            delMap[type]?.();
+          }});
+        }
+      }
+
+      menu.innerHTML = items.map((item, idx) => item.divider
+        ? '<div class="custom-context-divider"></div>'
+        : `<button type="button" role="menuitem" data-ctx-idx="${idx}" class="custom-context-item ${item.danger ? 'is-danger' : ''}">
+            <span class="truncate font-medium">${escapeHtml(item.label)}</span>
+            ${item.badge ? `<span class="badge badge-neutral text-[10px] py-0 num-tabular">${escapeHtml(item.badge)}</span>` : ''}
+          </button>`
+      ).join('');
+
+      menu.querySelectorAll('[data-ctx-idx]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const item = items[Number(btn.getAttribute('data-ctx-idx'))];
+          closeContextMenu();
+          item?.onClick?.();
+        });
+      });
+
+      menu.classList.remove('hidden');
+      const mw = menu.offsetWidth || 210;
+      const mh = menu.offsetHeight || 160;
+      const left = Math.min(event.clientX, window.innerWidth - mw - 10);
+      const top = Math.min(event.clientY, window.innerHeight - mh - 10);
+      menu.style.left = `${Math.max(8, left)}px`;
+      menu.style.top = `${Math.max(8, top)}px`;
+    }
+
+    function closeTopOpenOverlay() {
+      const ctx = document.getElementById('customContextMenu');
+      if (ctx && !ctx.classList.contains('hidden')) { closeContextMenu(); return true; }
+      if (datePortalEl && !datePortalEl.classList.contains('hidden')) { closeCustomDatePicker(true); return true; }
+      if (customPortalEl && !customPortalEl.classList.contains('hidden')) { closeCustomDropdown(true); return true; }
+      if (closeActiveCrmDialog()) return true;
+
+      const searchRes = document.getElementById('globalSearchResults');
+      if (searchRes && !searchRes.classList.contains('hidden')) { searchRes.classList.add('hidden'); return true; }
+      const themePop = document.getElementById('themePopover');
+      if (themePop && !themePop.classList.contains('hidden')) { themePop.classList.add('hidden'); return true; }
+
+      const modalClosers = [
+        ['aiAssistModal', closeAiModal],
+        ['invoicePdfModal', closePdfModal],
+        ['recordPaymentModal', closePaymentModal],
+        ['stageManagerModal', closeStageManagerModal],
+        ['newInspectionModal', closeNewInspectionModal],
+        ['newCampaignModal', closeNewCampaignModal],
+        ['newTicketModal', closeNewTicketModal],
+        ['newContractModal', closeNewContractModal],
+        ['newLeadModal', closeNewLeadModal],
+        ['newContactModal', closeNewContactModal],
+        ['newAccountModal', closeNewAccountModal],
+        ['newDealModal', closeNewDealModal],
+        ['convertLeadModal', closeConvertLeadModal],
+      ];
+      for (const [id, fn] of modalClosers) {
+        const el = document.getElementById(id);
+        if (el && !el.classList.contains('hidden')) { fn(); return true; }
+      }
+
+      const audit = document.getElementById('auditDrawerBackdrop');
+      if (audit && !audit.classList.contains('hidden')) { toggleAuditDrawer(); return true; }
+
+      const inspectorIds = [
+        'dealInspectorBackdrop', 'accountInspectorBackdrop', 'contactInspectorBackdrop',
+        'leadInspectorBackdrop', 'contractInspectorBackdrop', 'ticketInspectorBackdrop',
+        'campaignInspectorBackdrop', 'automationInspectorBackdrop', 'inspectionInspectorBackdrop'
+      ];
+      if (inspectorIds.some(id => !document.getElementById(id)?.classList.contains('hidden'))) {
+        closeEveryInspector();
+        return true;
+      }
+      return false;
     }
 
     function initCustomSelectListeners() {
@@ -5166,12 +7001,90 @@
             closeCustomDropdown();
           }
         }
+        if (datePortalEl && !datePortalEl.classList.contains('hidden')) {
+          if (!e.target.closest('#customDatePickerPortal') && !e.target.closest('.custom-date-wrap')) {
+            closeCustomDatePicker();
+          }
+        }
+        if (!e.target.closest('#customContextMenu')) {
+          closeContextMenu();
+        }
       });
 
-      window.addEventListener('resize', closeCustomDropdown);
-      document.addEventListener('scroll', (e) => {
-        if (e.target && e.target.id === 'customDropdownPortal') return;
+      document.addEventListener('contextmenu', (e) => {
+        const host = e.target.closest('[data-ctx-type]');
+        if (host) {
+          openContextMenuForElement(host, e);
+        } else {
+          closeContextMenu();
+        }
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+          e.preventDefault();
+          const inp = document.getElementById('globalSearchInput');
+          if (inp) {
+            inp.focus();
+            inp.select();
+            handleGlobalSearch(inp.value);
+          }
+          return;
+        }
+
+        if (customPortalEl && !customPortalEl.classList.contains('hidden') && activeCustomSelect) {
+          const isFilterInput = e.target.closest('#customDropdownPortal input');
+          if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (customSelectVisibleIndices.length) {
+              const pos = customSelectVisibleIndices.indexOf(customSelectActiveIndex);
+              customSelectActiveIndex = customSelectVisibleIndices[(pos + 1) % customSelectVisibleIndices.length];
+              renderCustomDropdownOptions(activeCustomSelect, isFilterInput ? e.target.value : '');
+            }
+            return;
+          }
+          if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (customSelectVisibleIndices.length) {
+              const pos = customSelectVisibleIndices.indexOf(customSelectActiveIndex);
+              customSelectActiveIndex = customSelectVisibleIndices[(pos - 1 + customSelectVisibleIndices.length) % customSelectVisibleIndices.length];
+              renderCustomDropdownOptions(activeCustomSelect, isFilterInput ? e.target.value : '');
+            }
+            return;
+          }
+          if (e.key === 'Enter' && customSelectActiveIndex >= 0) {
+            e.preventDefault();
+            selectCustomOptionByIndex(activeCustomSelect, customSelectActiveIndex);
+            return;
+          }
+          if (!isFilterInput && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            const ch = e.key.toLowerCase();
+            const match = Array.from(activeCustomSelect.options).findIndex(o => o.textContent.trim().toLowerCase().startsWith(ch));
+            if (match >= 0) {
+              customSelectActiveIndex = match;
+              renderCustomDropdownOptions(activeCustomSelect, '');
+            }
+          }
+        }
+
+        if (e.key === 'Escape') {
+          if (closeTopOpenOverlay()) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+        }
+      }, true);
+
+      window.addEventListener('resize', () => {
         closeCustomDropdown();
+        closeCustomDatePicker();
+        closeContextMenu();
+      });
+      document.addEventListener('scroll', (e) => {
+        if (e.target && (e.target.id === 'customDropdownPortal' || e.target.closest?.('#customDropdownPortal') || e.target.closest?.('#customDatePickerPortal'))) return;
+        closeCustomDropdown();
+        closeCustomDatePicker();
+        closeContextMenu();
       }, true);
     }
 
@@ -5589,9 +7502,14 @@
 
       container.innerHTML = state.todos.map((td, idx) => `
         <div class="p-2.5 rounded-lg crm-subtle flex items-start justify-between gap-2 text-xs">
-          <label class="flex items-start space-x-2.5 cursor-pointer min-w-0">
-            <input type="checkbox" ${td.done ? 'checked' : ''} onchange="toggleTodoItem(${idx})" class="mt-0.5 rounded" />
-            <div class="min-w-0">
+          <label class="crm-checkbox items-start min-w-0 flex-1">
+            <span class="relative inline-flex items-center mt-0.5 shrink-0">
+              <input type="checkbox" ${td.done ? 'checked' : ''} onchange="toggleTodoItem(${idx})" class="crm-checkbox-input" />
+              <span aria-hidden="true" class="crm-checkbox-box">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" class="crm-checkbox-icon"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+            </span>
+            <div class="min-w-0 crm-checkbox-label">
               <div class="${td.done ? 'line-through text-sub' : 'font-medium text-main'} truncate">${td.text}</div>
               <div class="text-[10px] text-sub num-tabular mt-0.5">${td.kind} · Due ${td.due}</div>
             </div>
@@ -6398,6 +8316,8 @@
               ${stageDeals.map(d => `
                 <div
                   draggable="true"
+                  data-ctx-type="deal"
+                  data-ctx-id="${d.id}"
                   ondragstart="handleDragStart(event, '${d.id}')"
                   onclick="openDealInspector('${d.id}')"
                   class="crm-card p-3.5 cursor-pointer hover:border-blue-500 transition-all space-y-2.5"
@@ -6444,7 +8364,7 @@
       }
 
       tbody.innerHTML = deals.map(d => `
-        <tr class="crm-hover">
+        <tr class="crm-hover" data-ctx-type="deal" data-ctx-id="${d.id}">
           <td class="py-3 px-4">
             <div class="font-semibold text-main">${d.title}</div>
             <div class="text-xs text-sub">${d.id}</div>

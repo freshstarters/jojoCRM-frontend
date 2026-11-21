@@ -311,13 +311,14 @@ The reviewer confirms:
 
 Serves the starter-object scope of the PRD.
 
-A file attaches to any starter record, and later to a tenant-created record. A tag is a workspace label that can be applied to a record. Tags are not relation fields.
+A file attaches to any starter record, and later to a tenant-created record. A tag is a workspace label that can be applied to a record. Tags are not relation fields. `Contract` records can also generate a downloadable printable commercial summary PDF carrying linked account, contact, dates, renewal date, GHS value, notes, and catalog line items.
 
 The reviewer confirms:
 
 - The same file control works on an Account and on an Invoice.
 - A tag created once can be applied to two records.
 - Removing the tag from one record leaves the other tagged.
+- A Contract downloads as a printable commercial summary PDF showing its fields and lines.
 
 ### S4.4 CSV
 
@@ -401,11 +402,11 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-The home dashboard is a set of widgets of type number, chart, and list, supporting server-backed time-window period filtering (`This Month`, `Quarter`, `YTD`, `All Time`). Each widget is bound to an object and filters (including cross-record Activity task/meeting lists from S4.6). A record page is ordered sections and fields. The tenant who has the theme-and-layouts switch can rearrange those. There is no free-form canvas and no custom HTML.
+The home dashboard is a set of widgets of type number, chart, and list, supporting server-backed time-window period filtering (`This Month`, `Quarter`, `YTD`, `All Time`), plus baseline low-stock reorder and receivables widget presets on Inventory/Invoice-enabled packs. Every signed-in workspace user can drag-and-drop rearrange their own dashboard boxes/cards by default (saved per user with a reset-to-default control, falling back to the workspace default). A record page is ordered sections and fields. A user with the `theme-and-layouts` switch can define the workspace default dashboard widget layout and rearrange sections and fields on record pages. There is no free-form canvas and no custom HTML.
 
 The reviewer confirms:
 
-- Adding, removing, reordering widgets, and switching the dashboard period filter (`This Month`, `Quarter`, `YTD`, `All Time`) updates the home dashboard metrics cleanly.
+- Any workspace user can drag-and-drop reorder their Home Dashboard cards and reset to default without affecting other users, and adding/removing/reordering widgets as an authorized layout editor updates workspace defaults cleanly alongside switching `This Month`, `Quarter`, `YTD`, and `All Time`.
 - Reordering fields on a record page survives a reload.
 - A widget respects the viewer's sharing and hidden fields.
 - Demo QA seeding (`seed_demo_data`) idempotently registers baseline custom widget layouts for demo tenants.
@@ -414,7 +415,7 @@ The reviewer confirms:
 
 Serves acceptance 10.
 
-The same switch can set a logo, primary, accent, and surface colors, light or dark, and a font from the short list. Preset themes are included. Expanded semantic stage color tokens adapt cleanly across light and dark modes. The shell, the dashboard, and record pages all use those tokens. Pasted CSS is not accepted.
+Every workspace user can set personal appearance preferences (light or dark mode, preset accent color, and a font from the short list) by default for their own view without altering other members. A role with the `theme-and-layouts` switch can set a custom workspace business logo alongside workspace-wide default primary, accent, surface colors, light/dark, and font tokens. Preset themes are included. Expanded semantic stage color tokens adapt cleanly across light and dark modes. The shell, the dashboard, and record pages all use those tokens. Pasted CSS is not accepted.
 
 The reviewer confirms:
 
@@ -482,7 +483,7 @@ The reviewer confirms:
 
 Serves acceptance 9.
 
-A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. Webhook actions enforce the same outbound network safety checks as S5.2 scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. The notification center also surfaces configurable per-user reminders for assigned overdue `Activity` tasks, upcoming `Appointments`, and `Visits` flagged with a `follow_up` (respecting S2.4 visibility and field rights), with Settings toggles to enable or mute each reminder category. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
+A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, low-stock reorder threshold crossed (when `Inventory` is enabled), and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. Webhook actions enforce the same outbound network safety checks as S5.2 scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. The notification center also surfaces configurable per-user reminders for assigned overdue `Activity` tasks, upcoming `Appointments`, and `Visits` flagged with a `follow_up` (respecting S2.4 visibility and field rights), with Settings toggles to enable or mute each reminder category. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
 
 The reviewer confirms:
 
