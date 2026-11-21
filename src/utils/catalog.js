@@ -393,6 +393,8 @@ export const INSPECTABLE_OBJECT_PANES = {
   appointments: 'appointments',
   visit: 'visits',
   visits: 'visits',
+  policy: 'policies',
+  policies: 'policies',
   ticket: 'tickets',
   tickets: 'tickets',
 }

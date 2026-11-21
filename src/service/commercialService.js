@@ -118,6 +118,43 @@ export function createContractFromDeal(slug, dealId, payload = {}) {
   )
 }
 
+export const POLICY_STATUSES = [
+  'Draft',
+  'Active',
+  'Pending Renewal',
+  'Expired',
+  'Cancelled',
+]
+
+export function getPolicyStatusBadgeClass(status) {
+  switch (status) {
+    case 'Active':
+      return 'badge badge-success'
+    case 'Pending Renewal':
+    case 'Expired':
+      return 'badge badge-warn'
+    case 'Cancelled':
+      return 'badge badge-danger'
+    default:
+      return 'badge badge-neutral'
+  }
+}
+
+export function getPolicyStatusColor(status) {
+  switch (status) {
+    case 'Active':
+      return '#10b981'
+    case 'Pending Renewal':
+      return '#f59e0b'
+    case 'Expired':
+      return '#f97316'
+    case 'Cancelled':
+      return '#ef4444'
+    default:
+      return '#64748b'
+  }
+}
+
 export const SUBSCRIPTION_INTERVALS = [
   { value: 'week', label: 'Weekly' },
   { value: 'month', label: 'Monthly' },
