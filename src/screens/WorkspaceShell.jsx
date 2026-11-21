@@ -334,17 +334,18 @@ export function WorkspaceShell({
     onNavigatePane?.(paneId, subtabId, options)
   }
 
-  function handleOpenLinkedRecord(paneId, recordId) {
+  function handleOpenLinkedRecord(paneId, recordId, subtabId = '') {
     if (!paneId || !recordId) return
     setMobileSidebarOpen(false)
     const targetSubtab =
-      paneId === 'deals'
+      subtabId ||
+      (paneId === 'deals'
         ? resolvedPane.paneId === 'deals' && resolvedPane.subtab
           ? resolvedPane.subtab
           : 'kanban'
         : paneId === 'invoicing'
           ? 'invoices'
-          : ''
+          : '')
     onInspectRecord?.(recordId, { paneId, subtabId: targetSubtab })
   }
 
@@ -358,7 +359,11 @@ export function WorkspaceShell({
 
   function handleSelectGlobalSearchResult(hit) {
     if (!hit?.inspect_pane_id || !hit?.inspect_record_id) return
-    handleOpenLinkedRecord(hit.inspect_pane_id, hit.inspect_record_id)
+    handleOpenLinkedRecord(
+      hit.inspect_pane_id,
+      hit.inspect_record_id,
+      hit.inspect_subtab_id || '',
+    )
   }
 
   return (

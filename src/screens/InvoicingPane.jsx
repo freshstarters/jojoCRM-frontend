@@ -6,6 +6,7 @@ import { FeedbackNotice } from '../components/FeedbackNotice.jsx'
 import { Select } from '../components/Select.jsx'
 import { Subtabs } from '../components/Subtabs.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
+import { CustomerSubscriptionsSection } from '../components/invoicing/CustomerSubscriptionsSection.jsx'
 import { InvoiceFormModal } from '../components/invoicing/InvoiceFormModal.jsx'
 import { InvoiceInspectorDrawer } from '../components/invoicing/InvoiceInspectorDrawer.jsx'
 import { InvoicePdfPreviewModal } from '../components/invoicing/InvoicePdfPreviewModal.jsx'
@@ -273,28 +274,18 @@ export function InvoicingPane({
 
   if (currentTab === 'subscriptions') {
     return (
-      <section id="pane-invoicing" className="space-y-5 w-full">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3 pb-4 border-b crm-border">
-          <div>
-            <h1 className="text-xl font-semibold text-main tracking-tight">
-              Customer Subscriptions
-            </h1>
-            <p className="text-xs text-sub mt-0.5">
-              Recurring customer billing agreements arrive in S3.4.
-            </p>
-          </div>
-          {subtabsBar}
-        </div>
-
-        <Card variant="subtle" className="p-5 space-y-2 max-w-3xl">
-          <div className="text-xs font-semibold text-main">
-            S3.4 Customer Subscriptions (Upcoming)
-          </div>
-          <p className="text-xs text-sub">
-            Use the Invoices and Payments tabs for commercial billing in GHS. Automated recurring Draft invoice generation is part of S3.4.
-          </p>
-        </Card>
-      </section>
+      <CustomerSubscriptionsSection
+        workspace={workspace}
+        workspaceSlug={workspaceSlug}
+        roleName={roleName}
+        subtabsBar={subtabsBar}
+        urlInspectRecordId={urlInspectRecordId}
+        onInspectRecord={onInspectRecord}
+        onCloseInspect={onCloseInspect}
+        onOpenInvoice={(invoiceId) => onOpenLinkedRecord?.('invoicing', invoiceId, 'invoices')}
+        onAuditRecorded={onAuditRecorded}
+        onSessionExpired={onSessionExpired}
+      />
     )
   }
 
