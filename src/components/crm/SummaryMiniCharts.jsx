@@ -68,7 +68,7 @@ export function HorizontalBarChart({
 export function MiniDonutChart({
   items = [],
   emptyLabel = 'No data yet',
-  ringSizeClass = 'w-12 h-12',
+  ringSizeClass = 'w-20 h-20',
   centerValue = null,
   centerLabel = '',
 }) {
@@ -98,9 +98,17 @@ export function MiniDonutChart({
     }, [])
 
   return (
-    <div className="flex items-center gap-4 w-full min-w-0">
+    <div className="flex items-center gap-5 w-full min-w-0">
       <div className={`relative ${ringSizeClass} shrink-0 flex items-center justify-center`}>
-        <svg viewBox="0 0 42 42" className={`${ringSizeClass} -rotate-90`}>
+        <svg viewBox="0 0 42 42" className={`${ringSizeClass} -rotate-90`} aria-hidden="true">
+          <circle
+            cx="21"
+            cy="21"
+            r={radius}
+            fill="none"
+            stroke="var(--border-color)"
+            strokeWidth="5.2"
+          />
           {slices.map((slice) => (
             <circle
               key={slice.label}
@@ -109,7 +117,7 @@ export function MiniDonutChart({
               r={radius}
               fill="none"
               stroke={slice.color || 'var(--brand-primary)'}
-              strokeWidth="6"
+              strokeWidth="5.2"
               strokeDasharray={`${slice.length} ${circumference - slice.length}`}
               strokeDashoffset={-slice.offset}
             />
@@ -117,32 +125,38 @@ export function MiniDonutChart({
         </svg>
         {centerValue !== null ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center pointer-events-none">
-            <span className="text-xs font-bold text-main num-tabular leading-none">
+            <span className="text-sm font-bold text-main num-tabular leading-none">
               {centerValue}
             </span>
             {centerLabel ? (
-              <span className="text-[9px] text-sub mt-0.5">{centerLabel}</span>
+              <span className="text-[10px] text-sub mt-0.5">{centerLabel}</span>
             ) : null}
           </div>
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 min-w-0">
-        {items.map((item) => (
-          <span
-            key={item.label}
-            className="inline-flex items-center gap-1.5 text-[11px]"
-          >
-            <span
-              className="w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: item.color || 'var(--brand-primary)' }}
-            />
-            <span className="text-sub">{item.label}</span>
-            <span className="font-semibold text-main num-tabular">
-              {item.count ?? 0}
-            </span>
-          </span>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5 flex-1 min-w-0">
+        {items.map((item) => {
+          const count = Number(item.count ?? 0)
+          const pct = total > 0 ? Math.round((count / total) * 100) : 0
+          return (
+            <div
+              key={item.label}
+              className="flex items-center justify-between gap-2 text-xs min-w-0"
+            >
+              <span className="inline-flex items-center gap-1.5 min-w-0">
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: item.color || 'var(--brand-primary)' }}
+                />
+                <span className="text-sub truncate">{item.label}</span>
+              </span>
+              <span className="font-semibold text-main num-tabular shrink-0">
+                {count} <span className="text-sub font-normal">({pct}%)</span>
+              </span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

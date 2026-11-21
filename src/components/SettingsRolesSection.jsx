@@ -144,6 +144,7 @@ export function SettingsRolesSection({
       { key: 'line_item', label: 'Line item', kind: 'Pack' },
       { key: 'invoice', label: 'Invoice', kind: 'Pack' },
       { key: 'payment', label: 'Payment', kind: 'Pack' },
+      { key: 'contract', label: 'Contract', kind: 'Pack' },
     ]
     if (!enabledKeysSet) return base
     // Show active tables first while keeping all configurable objects accessible.

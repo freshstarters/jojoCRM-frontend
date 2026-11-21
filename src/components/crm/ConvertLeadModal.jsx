@@ -7,6 +7,7 @@ import {
   listCrmRecords,
 } from '../../service/crmService.js'
 import { Button } from '../Button.jsx'
+import { DatePicker } from '../DateTimePicker.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Modal } from '../Modal.jsx'
 import { Select } from '../Select.jsx'
@@ -969,13 +970,12 @@ function ConvertLeadModalContent({
                         label="Target Close Date"
                         readOnly={roDealClose}
                       />
-                      <input
+                      <DatePicker
                         id="convert-deal-close"
-                        type="date"
+                        ariaLabel="Target Close Date"
                         value={targetCloseDate}
                         disabled={submitting || roDealClose}
-                        onChange={(e) => setTargetCloseDate(e.target.value)}
-                        className="crm-input w-full px-3 py-2"
+                        onChange={setTargetCloseDate}
                       />
                     </div>
                   ) : null}

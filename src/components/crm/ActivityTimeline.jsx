@@ -13,6 +13,7 @@ import { buildAssigneeSelectOptions } from '../../utils/crmFormOptions.js'
 import { formatDateTime, toDateTimeLocalValue } from '../../utils/formatters.js'
 import { Button } from '../Button.jsx'
 import { Checkbox } from '../Checkbox.jsx'
+import { DateTimePicker } from '../DateTimePicker.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { Select } from '../Select.jsx'
 
@@ -295,14 +296,15 @@ export function ActivityTimeline({
                 >
                   Due:
                 </label>
-                <input
-                  id={`new-activity-due-${objectKey}-${recordId}`}
-                  type="datetime-local"
-                  value={newDueAt}
-                  onChange={(e) => setNewDueAt(e.target.value)}
-                  disabled={savingNew}
-                  className="crm-input flex-1 px-2.5 py-1.5 text-[11px]"
-                />
+                <div className="flex-1 min-w-0">
+                  <DateTimePicker
+                    id={`new-activity-due-${objectKey}-${recordId}`}
+                    ariaLabel="Activity due date and time"
+                    value={newDueAt}
+                    onChange={setNewDueAt}
+                    disabled={savingNew}
+                  />
+                </div>
               </div>
             ) : null}
           </div>
@@ -345,12 +347,11 @@ export function ActivityTimeline({
                         disabled={savingEdit}
                       />
                       {editType !== 'note' ? (
-                        <input
-                          type="datetime-local"
+                        <DateTimePicker
+                          ariaLabel="Edit activity due date and time"
                           value={editDueAt}
-                          onChange={(e) => setEditDueAt(e.target.value)}
+                          onChange={setEditDueAt}
                           disabled={savingEdit}
-                          className="crm-input px-2.5 py-1.5 text-xs"
                         />
                       ) : null}
                     </div>

@@ -8,6 +8,7 @@ const BASE_SEARCH_OBJECTS = [
   { key: 'contact', label: 'Contact', plural: 'Contacts' },
   { key: 'lead', label: 'Lead', plural: 'Leads' },
   { key: 'deal', label: 'Deal', plural: 'Deals' },
+  { key: 'contract', label: 'Contract', plural: 'Contracts' },
   { key: 'job', label: 'Job', plural: 'Jobs' },
   { key: 'appointment', label: 'Appointment', plural: 'Appointments' },
   { key: 'visit', label: 'Visit', plural: 'Visits' },

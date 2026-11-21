@@ -92,6 +92,24 @@ export function RecordLinksSection({
     })
   }
 
+  if (Array.isArray(linkedRecords.contracts) && linkedRecords.contracts.length > 0) {
+    groups.push({
+      title: 'Contracts',
+      items: linkedRecords.contracts.map((ctr) => ({
+        paneId: 'contracts',
+        recordId: ctr.id,
+        label: ctr.title,
+        meta: [
+          ctr.status,
+          ctr.value !== undefined && ctr.value !== null ? formatGhs(ctr.value) : '',
+          ctr.renewal_date ? `Renews ${ctr.renewal_date}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    })
+  }
+
   if (Array.isArray(linkedRecords.jobs) && linkedRecords.jobs.length > 0) {
     groups.push({
       title: 'Jobs',

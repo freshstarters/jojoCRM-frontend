@@ -82,3 +82,38 @@ export function createJobFromDeal(slug, dealId, payload = {}) {
     payload,
   )
 }
+
+export const CONTRACT_STATUSES = ['Draft', 'Active', 'Expired', 'Terminated']
+
+export function getContractStatusBadgeClass(status) {
+  switch (status) {
+    case 'Active':
+      return 'badge badge-success'
+    case 'Expired':
+      return 'badge badge-warn'
+    case 'Terminated':
+      return 'badge badge-danger'
+    default:
+      return 'badge badge-neutral'
+  }
+}
+
+export function getContractStatusColor(status) {
+  switch (status) {
+    case 'Active':
+      return '#10b981'
+    case 'Expired':
+      return '#f59e0b'
+    case 'Terminated':
+      return '#ef4444'
+    default:
+      return '#64748b'
+  }
+}
+
+export function createContractFromDeal(slug, dealId, payload = {}) {
+  return apiPost(
+    `/api/v1/workspaces/${encodeURIComponent(slug)}/records/deal/${dealId}/create-contract/`,
+    payload,
+  )
+}
