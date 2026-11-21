@@ -222,6 +222,10 @@ export function invalidateClientCachesForMutation(path, method) {
     domains = ['pipelines', 'options', 'dashboard']
   } else if (subPath.startsWith('/invoice-statuses/')) {
     domains = ['invoiceStatuses', 'options', 'dashboard']
+  } else if (subPath.startsWith('/warehouses/')) {
+    domains = ['options', 'packs', 'dashboard']
+  } else if (subPath.startsWith('/inventory/')) {
+    domains = ['packs', 'dashboard']
   } else if (subPath === '/' || subPath === '') {
     domains = ['options', 'packs', 'dashboard']
   }

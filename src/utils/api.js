@@ -93,6 +93,10 @@ export function apiPatch(path, payload = {}) {
   return requestJson(path, { method: 'PATCH', payload, includeCsrf: true })
 }
 
+export function apiPut(path, payload = {}) {
+  return requestJson(path, { method: 'PUT', payload, includeCsrf: true })
+}
+
 export function apiDelete(path, payload = undefined) {
   return requestJson(path, {
     method: 'DELETE',

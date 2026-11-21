@@ -31,6 +31,7 @@ export function useCrmRecordsPane({
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [filters, setFilters] = useState({})
   const [refreshTick, setRefreshTick] = useState(0)
+  const [optionsRefreshTick, setOptionsRefreshTick] = useState(0)
 
   const [listData, setListData] = useState(null)
   const [completedRequestKey, setCompletedRequestKey] = useState('')
@@ -45,6 +46,9 @@ export function useCrmRecordsPane({
     contacts: [],
     contacts_total_count: 0,
     contacts_truncated: false,
+    products: [],
+    warehouses: [],
+    inventory_enabled: false,
     constants: {},
   })
 
@@ -81,6 +85,10 @@ export function useCrmRecordsPane({
 
   const reload = useCallback(() => {
     setRefreshTick((prev) => prev + 1)
+  }, [])
+
+  const reloadOptions = useCallback(() => {
+    setOptionsRefreshTick((prev) => prev + 1)
   }, [])
 
   const bumpRecordAuditRevision = useCallback(() => {
@@ -146,7 +154,7 @@ export function useCrmRecordsPane({
     if (!workspaceSlug || !needOptions) return undefined
     let cancelled = false
 
-    fetchCrmOptions(workspaceSlug)
+    fetchCrmOptions(workspaceSlug, { force: optionsRefreshTick > 0 })
       .then(({ response, data }) => {
         if (cancelled) return
         if (response.status === 401) {
@@ -163,6 +171,9 @@ export function useCrmRecordsPane({
             contacts: data.contacts || [],
             contacts_total_count: data.contacts_total_count ?? 0,
             contacts_truncated: Boolean(data.contacts_truncated),
+            products: data.products || [],
+            warehouses: data.warehouses || [],
+            inventory_enabled: Boolean(data.inventory_enabled),
             constants: data.constants || {},
           })
         }
@@ -174,7 +185,7 @@ export function useCrmRecordsPane({
     return () => {
       cancelled = true
     }
-  }, [workspaceSlug, needOptions, permissionsRevision, onSessionExpired])
+  }, [workspaceSlug, needOptions, permissionsRevision, optionsRefreshTick, onSessionExpired])
 
   const inspectRequestKey =
     workspaceSlug && inspectorOpen && effectiveInspectId
@@ -408,6 +419,7 @@ export function useCrmRecordsPane({
     loadError,
     optionsData,
     reload,
+    reloadOptions,
     inspectorOpen,
     inspectorLoading,
     inspectorError,
