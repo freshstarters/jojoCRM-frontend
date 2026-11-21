@@ -8533,9 +8533,16 @@
       showToast(`Confirmed and logged follow-up email on ${deal.title}.`);
     }
 
-    function declineDealAiProposal() {
+    async function declineDealAiProposal() {
+      const ok = await crmConfirm({
+        title: 'Discard AI draft?',
+        message: 'The generated email draft will be cleared and no activity will be logged on this deal.',
+        tone: 'warn',
+        confirmLabel: 'Discard draft',
+      });
+      if (!ok) return;
       document.getElementById('drawerAiProposalBox').classList.add('hidden');
-      showToast('Discarded AI draft. Deal record left unchanged.');
+      showToast('Discarded AI draft. Deal record left unchanged.', { tone: 'info' });
     }
 
     function closeOnBackdropClick(event, closeFn) {
@@ -8939,9 +8946,18 @@
       showToast(`Issued Invoice ${inv.id} and deducted ${inv.qty} units from ${getWarehouseName(inv.warehouse)}.`);
     }
 
-    function voidIssuedInvoice(invId) {
+    async function voidIssuedInvoice(invId) {
       const inv = state.invoices.find(i => i.id === invId);
       if (!inv || (inv.status !== 'Issued' && inv.status !== 'Partially paid')) return;
+
+      const ok = await crmConfirm({
+        title: `Void invoice ${inv.id}?`,
+        subtitle: inv.account,
+        message: `This marks ${inv.id} as Void and restores ${inv.qty} units of ${inv.productName} back to ${getWarehouseName(inv.warehouse)}.`,
+        destructive: true,
+        confirmLabel: 'Void invoice',
+      });
+      if (!ok) return;
 
       const oldStatus = inv.status;
       inv.status = 'Void';
@@ -9520,7 +9536,7 @@
         const person = primaryContact(account);
         const openDeals = openDealsForAccountName(account.name);
         return `
-          <tr class="crm-hover cursor-pointer" onclick="openAccountInspector('${account.id}')">
+          <tr class="crm-hover cursor-pointer" data-ctx-type="account" data-ctx-id="${account.id}" onclick="openAccountInspector('${account.id}')">
             <td class="py-3 px-4">
               <div class="font-semibold text-main">${escapeHtml(account.name)}</div>
               <div class="text-[11px] text-sub">${escapeHtml(account.id)}</div>
@@ -9603,7 +9619,7 @@
         const openDeals = dealsForContactName(contact.name).filter(deal => deal.stage !== 'Lost');
         const company = accountNameFor(contact) || '—';
         return `
-          <tr class="crm-hover cursor-pointer" onclick="openContactInspector('${contact.id}')">
+          <tr class="crm-hover cursor-pointer" data-ctx-type="contact" data-ctx-id="${contact.id}" onclick="openContactInspector('${contact.id}')">
             <td class="py-3 px-4">
               <div class="font-semibold text-main">${escapeHtml(contact.name)}</div>
               <div class="text-[11px] text-sub">${escapeHtml(contact.id)}</div>
@@ -9809,7 +9825,7 @@
       showToast(`Added ${type} to ${account.name}.`);
     }
 
-    function deleteAccountRecord() {
+    async function deleteAccountRecord() {
       const account = accountById(state.activeInspectorAccountId);
       if (!account) return;
       const people = contactsOnAccount(account.id);
@@ -9822,15 +9838,23 @@
       if (invoices.length) parts.push(`${invoices.length} invoice${invoices.length === 1 ? '' : 's'}`);
       if (inspections.length) parts.push(`${inspections.length} inspection${inspections.length === 1 ? '' : 's'}`);
       if (parts.length) {
-        showToast(`Cannot delete ${account.name} while ${parts.join(', ')} still point at it.`);
+        showToast(`Cannot delete ${account.name} while ${parts.join(', ')} still point at it.`, { tone: 'warn' });
         return;
       }
+      const ok = await crmConfirm({
+        title: `Delete ${account.name}?`,
+        subtitle: account.id,
+        message: 'This removes the account from the workspace directory.',
+        destructive: true,
+        confirmLabel: 'Delete account',
+      });
+      if (!ok) return;
       state.accounts = state.accounts.filter(row => row.id !== account.id);
       writeAudit(currentActorName(), 'Team Member', account.name, 'Account deleted', account.id, 'Removed');
       closeAccountInspector();
       renderAccountsAll();
       renderContactsAll();
-      showToast(`Deleted ${account.name}.`);
+      showToast(`Deleted ${account.name}.`, { tone: 'info' });
     }
 
     function openContactInspector(contactId) {
@@ -9957,20 +9981,28 @@
       showToast(`Added ${type} to ${contact.name}.`);
     }
 
-    function deleteContactRecord() {
+    async function deleteContactRecord() {
       const contact = state.contacts.find(row => row.id === state.activeInspectorContactId);
       if (!contact) return;
       const deals = state.deals.filter(deal => deal.contact === contact.name);
       if (deals.length) {
-        showToast(`Cannot delete ${contact.name} while ${deals.length} deal${deals.length === 1 ? '' : 's'} still name them.`);
+        showToast(`Cannot delete ${contact.name} while ${deals.length} deal${deals.length === 1 ? '' : 's'} still name them.`, { tone: 'warn' });
         return;
       }
+      const ok = await crmConfirm({
+        title: `Delete ${contact.name}?`,
+        subtitle: contact.id,
+        message: 'This contact and their activity log will be removed.',
+        destructive: true,
+        confirmLabel: 'Delete contact',
+      });
+      if (!ok) return;
       state.contacts = state.contacts.filter(row => row.id !== contact.id);
       writeAudit(currentActorName(), 'Team Member', contact.name, 'Contact deleted', contact.id, 'Removed');
       closeContactInspector();
       renderContactsAll();
       renderAccountsAll();
-      showToast(`Deleted ${contact.name}.`);
+      showToast(`Deleted ${contact.name}.`, { tone: 'info' });
     }
 
     function openNewAccountModal() {
@@ -10244,7 +10276,7 @@
         return;
       }
       tbody.innerHTML = rows.map(lead => `
-        <tr class="crm-hover cursor-pointer" onclick="openLeadInspector('${lead.id}')">
+        <tr class="crm-hover cursor-pointer" data-ctx-type="lead" data-ctx-id="${lead.id}" onclick="openLeadInspector('${lead.id}')">
           <td class="py-3 px-4">
             <div class="font-semibold text-main">${escapeHtml(lead.name)}</div>
             <div class="text-[11px] text-sub">${escapeHtml(lead.id)}</div>
@@ -10393,18 +10425,26 @@
       showToast(`Added ${type} to ${lead.name}.`);
     }
 
-    function deleteLeadRecord() {
+    async function deleteLeadRecord() {
       const lead = state.leads.find(row => row.id === state.activeInspectorLeadId);
       if (!lead) return;
       if (lead.converted) {
-        showToast(`Cannot delete ${lead.name} because this lead has already been converted.`);
+        showToast(`Cannot delete ${lead.name} because this lead has already been converted.`, { tone: 'warn' });
         return;
       }
+      const ok = await crmConfirm({
+        title: `Delete ${lead.name}?`,
+        subtitle: lead.id,
+        message: 'This lead and its qualification notes will be removed.',
+        destructive: true,
+        confirmLabel: 'Delete lead',
+      });
+      if (!ok) return;
       state.leads = state.leads.filter(row => row.id !== lead.id);
       writeAudit(currentActorName(), 'Team Member', lead.name, 'Lead deleted', lead.id, 'Removed');
       closeLeadInspector();
       renderLeadsAll();
-      showToast(`Deleted ${lead.name}.`);
+      showToast(`Deleted ${lead.name}.`, { tone: 'info' });
     }
 
     function openNewLeadModal() {
@@ -10557,7 +10597,7 @@
         const account = accountById(contract.accountId);
         const contact = contactById(contract.contactId);
         return `
-          <tr class="crm-hover cursor-pointer" onclick="openContractInspector('${contract.id}')">
+          <tr class="crm-hover cursor-pointer" data-ctx-type="contract" data-ctx-id="${contract.id}" onclick="openContractInspector('${contract.id}')">
             <td class="py-3 px-4">
               <div class="font-semibold text-main">${escapeHtml(contract.title)}</div>
               <div class="text-[11px] text-sub">${escapeHtml(contract.id)}</div>
@@ -10794,14 +10834,22 @@
       showToast(`Added ${type} to ${contract.title}.`);
     }
 
-    function deleteContractRecord() {
+    async function deleteContractRecord() {
       const contract = contractById(state.activeInspectorContractId);
       if (!contract) return;
+      const ok = await crmConfirm({
+        title: `Delete ${contract.title}?`,
+        subtitle: contract.id,
+        message: 'This removes the contract record and its catalog line items.',
+        destructive: true,
+        confirmLabel: 'Delete contract',
+      });
+      if (!ok) return;
       state.contracts = state.contracts.filter(row => row.id !== contract.id);
       writeAudit(currentActorName(), 'Team Member', contract.title, 'Contract deleted', contract.id, 'Removed');
       closeContractInspector();
       renderContractsAll();
-      showToast(`Deleted ${contract.title}.`);
+      showToast(`Deleted ${contract.title}.`, { tone: 'info' });
     }
 
     function openNewContractModal() {
@@ -10947,7 +10995,7 @@
         return;
       }
       tbody.innerHTML = rows.map(ticket => `
-        <tr class="crm-hover cursor-pointer" onclick="openTicketInspector('${ticket.id}')">
+        <tr class="crm-hover cursor-pointer" data-ctx-type="ticket" data-ctx-id="${ticket.id}" onclick="openTicketInspector('${ticket.id}')">
           <td class="py-3 px-4"><div class="font-semibold text-main">${escapeHtml(ticket.title)}</div><div class="text-[11px] text-sub">${escapeHtml(ticket.id)}</div></td>
           <td class="py-3 px-4">${escapeHtml(accountById(ticket.accountId)?.name || '—')}</td>
           <td class="py-3 px-4">${escapeHtml(contactById(ticket.contactId)?.name || '—')}</td>
@@ -11058,20 +11106,35 @@
       showToast('Logged the reply on ' + ticket.title + '. Nothing was sent.');
     }
 
-    function discardTicketAiReply() {
+    async function discardTicketAiReply() {
+      const ok = await crmConfirm({
+        title: 'Discard AI reply draft?',
+        message: 'The drafted reply will be removed and the ticket timeline will stay unchanged.',
+        tone: 'warn',
+        confirmLabel: 'Discard reply',
+      });
+      if (!ok) return;
       document.getElementById('ticketAiDraftBox').classList.add('hidden');
-      showToast('Discarded the reply. The ticket was left unchanged.');
+      showToast('Discarded the reply. The ticket was left unchanged.', { tone: 'info' });
     }
 
-    function deleteTicketRecord() {
+    async function deleteTicketRecord() {
       const ticket = state.tickets.find(row => row.id === state.activeInspectorTicketId);
       if (!ticket) return;
+      const ok = await crmConfirm({
+        title: `Delete ${ticket.title}?`,
+        subtitle: ticket.id,
+        message: 'This support ticket and its activity timeline will be removed.',
+        destructive: true,
+        confirmLabel: 'Delete ticket',
+      });
+      if (!ok) return;
       state.tickets = state.tickets.filter(row => row.id !== ticket.id);
       writeAudit(currentActorName(), 'Team Member', ticket.title, 'Ticket deleted', ticket.id, 'Removed');
       closeTicketInspector();
       renderTicketsAll();
       renderDashboardActivities();
-      showToast('Deleted ' + ticket.title + '.');
+      showToast('Deleted ' + ticket.title + '.', { tone: 'info' });
     }
 
     function openNewTicketModal() {
@@ -11151,7 +11214,7 @@
         return;
       }
       tbody.innerHTML = rows.map(row => `
-        <tr class="crm-hover cursor-pointer" onclick="openCampaignInspector('${row.id}')">
+        <tr class="crm-hover cursor-pointer" data-ctx-type="campaign" data-ctx-id="${row.id}" onclick="openCampaignInspector('${row.id}')">
           <td class="py-3 px-4"><div class="font-semibold text-main">${escapeHtml(row.name)}</div><div class="text-[11px] text-sub">${escapeHtml(row.id)}</div></td>
           <td class="py-3 px-4">${escapeHtml(row.channel === 'Call' ? 'Phone calls' : row.channel)}</td>
           <td class="py-3 px-4 num-tabular">${row.members.length}</td>
@@ -11332,18 +11395,26 @@
       openCampaignInspector(campaign.id);
     }
 
-    function deleteCampaignRecord() {
+    async function deleteCampaignRecord() {
       const campaign = state.campaigns.find(row => row.id === state.activeInspectorCampaignId);
       if (!campaign) return;
       if (campaign.status === 'Sent') {
-        showToast('Cannot delete ' + campaign.name + ' because this campaign has already been sent.');
+        showToast('Cannot delete ' + campaign.name + ' because this campaign has already been sent.', { tone: 'warn' });
         return;
       }
+      const ok = await crmConfirm({
+        title: `Delete ${campaign.name}?`,
+        subtitle: campaign.id,
+        message: 'This draft campaign and its member selection will be removed.',
+        destructive: true,
+        confirmLabel: 'Delete campaign',
+      });
+      if (!ok) return;
       state.campaigns = state.campaigns.filter(row => row.id !== campaign.id);
       writeAudit(currentActorName(), 'Team Member', campaign.name, 'Campaign deleted', campaign.id, 'Removed');
       closeCampaignInspector();
       renderCampaignsAll();
-      showToast('Deleted ' + campaign.name + '.');
+      showToast('Deleted ' + campaign.name + '.', { tone: 'info' });
     }
 
     function openNewCampaignModal() {
@@ -11396,7 +11467,7 @@
         return;
       }
       tbody.innerHTML = rows.map(rule => `
-        <tr class="crm-hover cursor-pointer" onclick="openAutomationInspector('${rule.id}')">
+        <tr class="crm-hover cursor-pointer" data-ctx-type="automation" data-ctx-id="${rule.id}" onclick="openAutomationInspector('${rule.id}')">
           <td class="py-3 px-4"><div class="font-semibold text-main">${escapeHtml(rule.name)}</div><div class="text-[11px] text-sub">${escapeHtml(rule.detail)}</div></td>
           <td class="py-3 px-4">${rule.enabled ? 'On' : 'Off'}</td>
           <td class="py-3 px-4">${rule.ran ? 'Ran once' : 'Not run'}</td>
@@ -11491,14 +11562,22 @@
       showToast(rule.name + ' updated ' + count + ' record' + (count === 1 ? '' : 's') + '.');
     }
 
-    function deleteAutomationRecord() {
+    async function deleteAutomationRecord() {
       const rule = state.automations.find(row => row.id === state.activeInspectorAutomationId);
       if (!rule) return;
+      const ok = await crmConfirm({
+        title: `Delete ${rule.name}?`,
+        subtitle: rule.id,
+        message: 'Notes this rule already wrote stay on records, but the rule will stop running.',
+        destructive: true,
+        confirmLabel: 'Delete rule',
+      });
+      if (!ok) return;
       state.automations = state.automations.filter(row => row.id !== rule.id);
       writeAudit(currentActorName(), 'Team Member', rule.name, 'Rule deleted', rule.id, 'Removed');
       closeAutomationInspector();
       renderAutomationsAll();
-      showToast('Deleted ' + rule.name + '. Notes it already wrote stay where they are.');
+      showToast('Deleted ' + rule.name + '. Notes it already wrote stay where they are.', { tone: 'info' });
     }
 
     function renderInspectionsAll() {
@@ -11521,7 +11600,7 @@
         return;
       }
       tbody.innerHTML = rows.map(row => `
-        <tr class="crm-hover cursor-pointer" onclick="openInspectionInspector('${row.id}')">
+        <tr class="crm-hover cursor-pointer" data-ctx-type="inspection" data-ctx-id="${row.id}" onclick="openInspectionInspector('${row.id}')">
           <td class="py-3 px-4"><div class="font-semibold text-main">${escapeHtml(row.site)}</div><div class="text-[11px] text-sub">${escapeHtml(row.id)}</div></td>
           <td class="py-3 px-4 num-tabular">${escapeHtml(row.date)}</td>
           <td class="py-3 px-4"><span class="badge ${row.result === 'Fail' ? 'badge-danger' : row.result === 'Pass' ? 'badge-success' : 'badge-neutral'} text-[10px] py-0">${escapeHtml(row.result)}</span></td>
@@ -11599,14 +11678,22 @@
       openInspectionInspector(row.id);
     }
 
-    function deleteInspectionRecord() {
+    async function deleteInspectionRecord() {
       const row = state.inspections.find(item => item.id === state.activeInspectorInspectionId);
       if (!row) return;
+      const ok = await crmConfirm({
+        title: `Delete ${row.site}?`,
+        subtitle: row.id,
+        message: 'This custom table row and its inspection notes will be removed.',
+        destructive: true,
+        confirmLabel: 'Delete row',
+      });
+      if (!ok) return;
       state.inspections = state.inspections.filter(item => item.id !== row.id);
       writeAudit(currentActorName(), 'Team Member', row.site, 'Inspection deleted', row.id, 'Removed');
       closeInspectionInspector();
       renderInspectionsAll();
-      showToast('Deleted ' + row.site + '.');
+      showToast('Deleted ' + row.site + '.', { tone: 'info' });
     }
 
     function openNewInspectionModal() {
@@ -11652,7 +11739,8 @@
       { id: 'sms', title: 'SMS', badge: 'Hubtel', desc: 'Sender ID KORAIND, at most 11 characters, and the prepaid wallet.', checks: ['SMS waits until Hubtel approves the sender ID.', 'The wallet top-up stays in the sidebar. The rate per segment is configuration.'] },
       { id: 'scripts', title: 'Scripts', badge: 'Platform', desc: 'An Owner-managed allowlist of HTTPS URLs. A script runs for at most one second.', checks: ['Private, loopback, and link-local addresses are refused.', 'A script cannot change billing, roles, or other scripts.'] },
       { id: 'billing', title: 'Billing', badge: 'Paystack', desc: 'The jojoCRM seat plan. This is not a customer subscription.', checks: ['Price is per active seat, in GHS, monthly or yearly.', 'A 60-day card trial is one per email. Mobile money buys a prepaid period and does not renew.', 'An unpaid workspace can still be opened and exported. Creates, edits, sends, automations, scripts, and the agent are refused.'] },
-      { id: 'privacy', title: 'Privacy', badge: 'Act 843', desc: 'The notice names the hosting country and the mail, SMS, payment, and model providers.', checks: ['The tenant is the controller and jojoCRM is the processor.', 'From here the Owner can export the workspace or delete it.'] }
+      { id: 'privacy', title: 'Privacy', badge: 'Act 843', desc: 'The notice names the hosting country and the mail, SMS, payment, and model providers.', checks: ['The tenant is the controller and jojoCRM is the processor.', 'From here the Owner can export the workspace or delete it.'] },
+      { id: 'components', title: 'UI Kit', badge: 'Design System', desc: 'Interactive preview of every custom frosted control replacing browser defaults.', checks: [] }
     ];
 
     function renderSettings() {
@@ -11666,15 +11754,111 @@
       const current = settingsSections.find(section => section.id === state.settingsSection) || settingsSections[0];
       state.settingsSection = current.id;
       paintSubtabs('settingsSubtabs', current.id);
-      document.getElementById('settingsBadge').textContent = current.badge;
-      document.getElementById('settingsTitle').textContent = current.title;
-      document.getElementById('settingsDesc').textContent = current.desc;
-      document.getElementById('settingsChecks').innerHTML = current.checks.map(line => '<li>' + escapeHtml(line) + '</li>').join('');
+
+      const defaultCard = document.getElementById('settingsDefaultCard');
+      const uiKitPanel = document.getElementById('settingsUiKitPanel');
+      const isUiKit = current.id === 'components';
+      if (defaultCard) defaultCard.classList.toggle('hidden', isUiKit);
+      if (uiKitPanel) uiKitPanel.classList.toggle('hidden', !isUiKit);
+
+      if (!isUiKit) {
+        document.getElementById('settingsBadge').textContent = current.badge;
+        document.getElementById('settingsTitle').textContent = current.title;
+        document.getElementById('settingsDesc').textContent = current.desc;
+        document.getElementById('settingsChecks').innerHTML = current.checks.map(line => '<li>' + escapeHtml(line) + '</li>').join('');
+      } else {
+        const indet = document.getElementById('uiKitIndeterminateDemo');
+        if (indet) indet.indeterminate = true;
+        enhanceAllCustomSelects();
+      }
     }
 
     function setSettingsSection(id) {
       state.settingsSection = id;
       renderSettings();
+    }
+
+    async function demoUiKitAlert() {
+      await crmAlert({
+        title: 'Workspace Sync Verified',
+        subtitle: 'Hubtel & Paystack Connections',
+        message: 'All custom alerts render with your frosted --bg-modal tokens instead of the browser native alert box.',
+        tone: 'info',
+        badgeLabel: 'Notice',
+      });
+    }
+
+    async function demoUiKitConfirm() {
+      const ok = await crmConfirm({
+        title: 'Publish saved pipeline view?',
+        subtitle: 'Deals & Sales Pipeline',
+        message: 'Everyone in the Sales team role will see this default column and filter layout.',
+        tone: 'info',
+        confirmLabel: 'Publish view',
+      });
+      showToast(ok ? 'Confirmed: pipeline view published.' : 'Cancelled without changes.', { tone: ok ? 'success' : 'info' });
+    }
+
+    async function demoUiKitDangerConfirm() {
+      const ok = await crmConfirm({
+        title: 'Void issued invoice?',
+        subtitle: 'INV-408 · Kora Industrial Ltd',
+        message: 'This marks the invoice Void and restores reserved stock back to Accra Central.',
+        destructive: true,
+        confirmLabel: 'Void invoice',
+      });
+      showToast(ok ? 'Confirmed destructive action.' : 'Kept invoice untouched.', { tone: ok ? 'warn' : 'info' });
+    }
+
+    async function demoUiKitPrompt() {
+      const val = await crmPrompt({
+        title: 'Rename Saved View',
+        subtitle: 'Deals Filter Preset',
+        message: 'Enter a clear name for this saved deal filter:',
+        placeholder: 'e.g. High Value Accra Q4',
+        defaultValue: 'Closing This Month',
+        confirmLabel: 'Save name',
+      });
+      if (val && val.trim()) {
+        showToast('Saved view renamed to "' + val.trim() + '".', { tone: 'success' });
+      }
+    }
+
+    const uiKitFiles = [
+      { name: 'Kora-MSA-2026-Signed.pdf', size: '428 KB' },
+      { name: 'Tema-Port-SLA-Annex.pdf', size: '192 KB' }
+    ];
+
+    function renderUiKitFileChips() {
+      const host = document.getElementById('uiKitFileChips');
+      if (!host) return;
+      if (!uiKitFiles.length) {
+        host.innerHTML = '<span class="text-[11px] text-sub">No files attached yet.</span>';
+        return;
+      }
+      host.innerHTML = uiKitFiles.map((f, idx) => `
+        <span class="badge badge-neutral gap-1.5 py-1 px-2.5">
+          <span>${escapeHtml(f.name)}</span>
+          <span class="text-[10px] text-sub num-tabular">${escapeHtml(f.size)}</span>
+          <button type="button" onclick="uiKitFiles.splice(${idx}, 1); renderUiKitFileChips();" class="text-sub hover:text-main ml-0.5" aria-label="Remove file">✕</button>
+        </span>
+      `).join('');
+    }
+
+    function handleUiKitFileSelect(fileList) {
+      if (!fileList || !fileList.length) return;
+      Array.from(fileList).forEach(f => {
+        const kb = Math.max(1, Math.round(f.size / 1024));
+        uiKitFiles.push({ name: f.name, size: kb + ' KB' });
+      });
+      renderUiKitFileChips();
+      showToast('Attached ' + fileList.length + ' file' + (fileList.length === 1 ? '' : 's') + '.', { tone: 'success' });
+    }
+
+    function handleUiKitFileDrop(event) {
+      event.preventDefault();
+      event.currentTarget.classList.remove('is-dragover');
+      handleUiKitFileSelect(event.dataTransfer?.files);
     }
 
     /* ------------------------------------------------------------------------
@@ -11697,7 +11881,9 @@
       renderAutomationsAll();
       renderInspectionsAll();
       renderSettings();
+      renderUiKitFileChips();
       initCustomSelectListeners();
+      enhanceAllCustomControls();
       mountGlobalSearchResults();
       mountThemePopover();
     };
