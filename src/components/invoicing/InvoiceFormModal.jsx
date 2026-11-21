@@ -30,11 +30,13 @@ export function InvoiceFormModal({
   contactLabel = 'Contact',
   contactPlural = 'Contacts',
   onSubmitCreate,
+  onOpenWarehouses,
   onSessionExpired,
 }) {
   const enabledKeys = new Set(workspace?.enabled_object_keys || [])
   const productEnabled = enabledKeys.has('product')
   const lineItemEnabled = enabledKeys.has('line_item')
+  const inventoryEnabled = enabledKeys.has('inventory')
 
   const defaultIssue = todayIso()
   const [form, setForm] = useState({
@@ -109,6 +111,9 @@ export function InvoiceFormModal({
     if (lineItemEnabled && draftLines.length > 0) {
       payload.line_items = draftLines.map((li) => ({
         ...(li.product_id ? { product_id: Number(li.product_id) } : {}),
+        ...(inventoryEnabled && li.warehouse_id
+          ? { warehouse_id: Number(li.warehouse_id) }
+          : {}),
         description: li.description,
         quantity: li.quantity,
         unit_price: li.unit_price,
@@ -312,6 +317,12 @@ export function InvoiceFormModal({
             items={draftLines}
             onDraftItemsChange={setDraftLines}
             products={optionsData.products || []}
+            warehouses={optionsData.warehouses || []}
+            inventoryEnabled={inventoryEnabled}
+            onOpenWarehouses={() => {
+              onClose()
+              onOpenWarehouses?.()
+            }}
             productEnabled={productEnabled}
             lineItemEnabled={lineItemEnabled}
             canEdit={!submitting}

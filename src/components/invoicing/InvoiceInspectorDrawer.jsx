@@ -32,6 +32,7 @@ export function InvoiceInspectorDrawer({
   contactPlural = 'Contacts',
   onOpenPaymentModal,
   onOpenPdfPreview,
+  onOpenWarehouses,
   onOpenLinkedRecord,
   onInvoiceMutated,
   onSessionExpired,
@@ -41,6 +42,7 @@ export function InvoiceInspectorDrawer({
   const enabledKeys = new Set(workspace?.enabled_object_keys || [])
   const productEnabled = enabledKeys.has('product')
   const lineItemEnabled = enabledKeys.has('line_item')
+  const inventoryEnabled = enabledKeys.has('inventory')
   const paymentEnabled = enabledKeys.has('payment')
   const paymentRights = getObjectRights(permissions, 'payment')
   const lineRights = getObjectRights(permissions, 'line_item')
@@ -535,6 +537,15 @@ export function InvoiceInspectorDrawer({
         </div>
       ) : null}
 
+      {isDraft &&
+      inventoryEnabled &&
+      lines.some((li) => li.product_id && !li.warehouse_id) ? (
+        <FeedbackNotice
+          tone="warn"
+          message="Select a warehouse on every product line item before issuing this invoice."
+        />
+      ) : null}
+
       {lineItemEnabled && active?.line_items_readable ? (
         <div className="pt-3 border-t crm-border">
           <InvoiceLineItemsEditor
@@ -543,6 +554,12 @@ export function InvoiceInspectorDrawer({
             parentId={active.id}
             items={lines}
             products={pane.optionsData?.products || []}
+            warehouses={pane.optionsData?.warehouses || []}
+            inventoryEnabled={inventoryEnabled}
+            onOpenWarehouses={() => {
+              onClose?.()
+              onOpenWarehouses?.()
+            }}
             productEnabled={productEnabled}
             lineItemEnabled={lineItemEnabled}
             canEdit={

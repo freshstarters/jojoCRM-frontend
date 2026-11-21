@@ -133,6 +133,11 @@ export function InvoicePdfPreviewModal({
                             SKU: {li.product_sku}
                           </div>
                         ) : null}
+                        {li.warehouse_name || li.warehouse?.name ? (
+                          <div className="text-[10px] text-slate-500">
+                            Warehouse: {li.warehouse_name || li.warehouse?.name}
+                          </div>
+                        ) : null}
                       </td>
                       <td className="py-2 px-2.5 text-right num-tabular text-slate-700">
                         {Number(li.quantity).toFixed(2).replace(/\.00$/, '')}

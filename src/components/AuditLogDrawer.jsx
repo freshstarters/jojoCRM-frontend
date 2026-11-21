@@ -54,6 +54,14 @@ const OBJECT_TYPE_LABELS = {
   appointment: 'Appointment',
   visit: 'Visit',
   ticket: 'Ticket',
+  product: 'Product',
+  line_item: 'Line item',
+  invoice: 'Invoice',
+  invoice_status: 'Invoice status',
+  payment: 'Payment',
+  inventory: 'Inventory',
+  warehouse: 'Warehouse',
+  stock_transfer: 'Stock transfer',
 }
 
 function formatAuditValue(value) {
