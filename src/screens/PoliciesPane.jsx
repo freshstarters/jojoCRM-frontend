@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
 import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
+import { RecordRelationPicker } from '../components/crm/RecordRelationPicker.jsx'
 import { SharingBadge } from '../components/crm/RecordSharingControl.jsx'
 import { PolicyFormModal } from '../components/policies/PolicyFormModal.jsx'
 import { PolicyInspectorDrawer } from '../components/policies/PolicyInspectorDrawer.jsx'
@@ -59,13 +60,6 @@ export function PoliciesPane({
   const [createOpen, setCreateOpen] = useState(() => Boolean(prefillCreate))
   const [modalPrefill, setModalPrefill] = useState(() => prefillCreate)
 
-  useEffect(() => {
-    if (prefillCreate) {
-      setModalPrefill(prefillCreate)
-      setCreateOpen(true)
-    }
-  }, [prefillCreate])
-
   const configuredStatuses = useMemo(
     () => pane.optionsData?.constants?.policy_statuses || POLICY_STATUSES,
     [pane.optionsData?.constants?.policy_statuses],
@@ -77,17 +71,6 @@ export function PoliciesPane({
       ...configuredStatuses.map((s) => ({ value: s, label: s })),
     ],
     [configuredStatuses],
-  )
-
-  const accountFilterOptions = useMemo(
-    () => [
-      { value: '', label: 'All accounts' },
-      ...(pane.optionsData?.accounts || []).map((acc) => ({
-        value: String(acc.id),
-        label: acc.name,
-      })),
-    ],
-    [pane.optionsData?.accounts],
   )
 
   const statusMixSegments = useMemo(() => {
@@ -236,12 +219,20 @@ export function PoliciesPane({
               </div>
             ) : null}
             {!hideAccount ? (
-              <div className="w-48">
-                <Select
+              <div className="w-52">
+                <RecordRelationPicker
                   ariaLabel="Filter by account"
+                  workspaceSlug={workspaceSlug}
+                  objectKey="account"
+                  objectPluralLabel="accounts"
                   value={pane.filters.account_id || ''}
+                  fallbackOptions={pane.optionsData?.accounts || []}
+                  allowEmpty
+                  emptyLabel="All accounts"
+                  placeholder="All accounts"
+                  searchPlaceholder="Search accounts..."
                   onChange={(val) => pane.updateFilter('account_id', val)}
-                  options={accountFilterOptions}
+                  onSessionExpired={onSessionExpired}
                 />
               </div>
             ) : null}

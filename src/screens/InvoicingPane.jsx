@@ -277,12 +277,15 @@ export function InvoicingPane({
       <CustomerSubscriptionsSection
         workspace={workspace}
         workspaceSlug={workspaceSlug}
+        user={user}
+        permissions={permissions}
         roleName={roleName}
         subtabsBar={subtabsBar}
         urlInspectRecordId={urlInspectRecordId}
         onInspectRecord={onInspectRecord}
         onCloseInspect={onCloseInspect}
         onOpenInvoice={(invoiceId) => onOpenLinkedRecord?.('invoicing', invoiceId, 'invoices')}
+        onOpenLinkedRecord={onOpenLinkedRecord}
         onAuditRecorded={onAuditRecorded}
         onSessionExpired={onSessionExpired}
       />

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '../components/Button.jsx'
 import { Select } from '../components/Select.jsx'
 import { CrmListPage } from '../components/crm/CrmListPage.jsx'
+import { RecordRelationPicker } from '../components/crm/RecordRelationPicker.jsx'
 import { SharingBadge } from '../components/crm/RecordSharingControl.jsx'
 import { ContractFormModal } from '../components/contracts/ContractFormModal.jsx'
 import { ContractInspectorDrawer } from '../components/contracts/ContractInspectorDrawer.jsx'
@@ -67,17 +68,6 @@ export function ContractsPane({
       ...configuredStatuses.map((s) => ({ value: s, label: s })),
     ],
     [configuredStatuses],
-  )
-
-  const accountFilterOptions = useMemo(
-    () => [
-      { value: '', label: 'All accounts' },
-      ...(pane.optionsData?.accounts || []).map((acc) => ({
-        value: String(acc.id),
-        label: acc.name,
-      })),
-    ],
-    [pane.optionsData?.accounts],
   )
 
   const statusMixSegments = useMemo(() => {
@@ -224,12 +214,20 @@ export function ContractsPane({
             </div>
           ) : null}
           {!hideAccount ? (
-            <div className="w-48">
-              <Select
+            <div className="w-52">
+              <RecordRelationPicker
                 ariaLabel="Filter by account"
+                workspaceSlug={workspaceSlug}
+                objectKey="account"
+                objectPluralLabel="accounts"
                 value={pane.filters.account_id || ''}
+                fallbackOptions={pane.optionsData?.accounts || []}
+                allowEmpty
+                emptyLabel="All accounts"
+                placeholder="All accounts"
+                searchPlaceholder="Search accounts..."
                 onChange={(val) => pane.updateFilter('account_id', val)}
-                options={accountFilterOptions}
+                onSessionExpired={onSessionExpired}
               />
             </div>
           ) : null}

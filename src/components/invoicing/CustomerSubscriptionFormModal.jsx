@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import {
+  SUBSCRIPTION_FIELD_RIGHT_MAP,
   buildSubscriptionForm,
   buildSubscriptionPayload,
   createCustomerSubscription,
 } from '../../service/commercialService.js'
+import { filterWritablePayload, isFieldHidden, isFieldReadOnly } from '../../service/crmService.js'
 import { Button } from '../Button.jsx'
 import { Checkbox } from '../Checkbox.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
@@ -15,6 +17,7 @@ export function CustomerSubscriptionFormModal({
   onClose,
   workspaceSlug,
   options = {},
+  fieldRights = {},
   inventoryEnabled = false,
   canCreateInvoice = false,
   onCreated,
@@ -42,19 +45,25 @@ export function CustomerSubscriptionFormModal({
     setWasOpen(false)
   }
 
+  const accountRequired =
+    !isFieldHidden(fieldRights, 'account') && !isFieldReadOnly(fieldRights, 'account')
+  const productRequired =
+    !isFieldHidden(fieldRights, 'product') && !isFieldReadOnly(fieldRights, 'product')
+
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
-    if (!form.account_id || !form.product_id) {
+    if ((accountRequired && !form.account_id) || (productRequired && !form.product_id)) {
       setError('Select an Account and a Product.')
       return
     }
     setSubmitting(true)
     try {
-      const { response, data } = await createCustomerSubscription(
-        workspaceSlug,
-        buildSubscriptionPayload(form, { includeFirstInvoice: canCreateInvoice }),
-      )
+      const rawPayload = buildSubscriptionPayload(form, {
+        includeFirstInvoice: canCreateInvoice,
+      })
+      const payload = filterWritablePayload(rawPayload, fieldRights, SUBSCRIPTION_FIELD_RIGHT_MAP)
+      const { response, data } = await createCustomerSubscription(workspaceSlug, payload)
       if (!response.ok) {
         if (response.status === 401) {
           onSessionExpired?.(data?.error || data?.detail)
@@ -106,11 +115,14 @@ export function CustomerSubscriptionFormModal({
         <FeedbackNotice tone="danger" message={error} />
         <CustomerSubscriptionFields
           idPrefix="new-sub"
+          workspaceSlug={workspaceSlug}
           form={form}
           onChange={setForm}
           options={options}
+          fieldRights={fieldRights}
           inventoryEnabled={inventoryEnabled}
           disabled={submitting}
+          onSessionExpired={onSessionExpired}
         />
         {canCreateInvoice && form.status === 'Active' ? (
           <Checkbox

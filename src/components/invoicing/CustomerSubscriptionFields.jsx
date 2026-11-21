@@ -1,40 +1,64 @@
 import { SUBSCRIPTION_INTERVALS, SUBSCRIPTION_STATUSES } from '../../service/commercialService.js'
+import { isFieldHidden, isFieldReadOnly } from '../../service/crmService.js'
 import { DatePicker } from '../DateTimePicker.jsx'
 import { Select } from '../Select.jsx'
+import { FieldLabel } from '../crm/FieldLabel.jsx'
+import { RecordRelationPicker } from '../crm/RecordRelationPicker.jsx'
 import { RecordSharingControl } from '../crm/RecordSharingControl.jsx'
 
 export function CustomerSubscriptionFields({
   idPrefix,
+  workspaceSlug,
   form,
   onChange,
   options = {},
+  fieldRights = {},
+  selectedAccount = null,
+  selectedProduct = null,
   inventoryEnabled = false,
   disabled = false,
   canManageSharing = true,
+  showSharing = true,
+  onSessionExpired,
 }) {
-  const accountOptions = (options.accounts || []).map((a) => ({
-    value: String(a.id),
-    label: a.name,
-  }))
-  const productOptions = (options.products || []).map((p) => ({
-    value: String(p.id),
-    label: p.sku ? `${p.name} (${p.sku})` : p.name,
-  }))
+  const hideAccount = isFieldHidden(fieldRights, 'account')
+  const hideProduct = isFieldHidden(fieldRights, 'product')
+  const hideQuantity = isFieldHidden(fieldRights, 'quantity')
+  const hideAmount = isFieldHidden(fieldRights, 'amount')
+  const hideInterval = isFieldHidden(fieldRights, 'interval')
+  const hideStatus = isFieldHidden(fieldRights, 'status')
+  const hideNextBilling = isFieldHidden(fieldRights, 'next_billing_date')
+  const hideWarehouse = isFieldHidden(fieldRights, 'warehouse')
+  const hideNotes = isFieldHidden(fieldRights, 'notes')
+
+  const roAccount = isFieldReadOnly(fieldRights, 'account')
+  const roProduct = isFieldReadOnly(fieldRights, 'product')
+  const roQuantity = isFieldReadOnly(fieldRights, 'quantity')
+  const roAmount = isFieldReadOnly(fieldRights, 'amount')
+  const roInterval = isFieldReadOnly(fieldRights, 'interval')
+  const roStatus = isFieldReadOnly(fieldRights, 'status')
+  const roNextBilling = isFieldReadOnly(fieldRights, 'next_billing_date')
+  const roWarehouse = isFieldReadOnly(fieldRights, 'warehouse')
+  const roNotes = isFieldReadOnly(fieldRights, 'notes')
+
   const warehouseOptions = [
     { value: '', label: 'No warehouse' },
     ...(options.warehouses || []).map((w) => ({ value: String(w.id), label: w.name })),
   ]
 
-  function suggestAmount(productId, quantity) {
-    const product = (options.products || []).find((p) => String(p.id) === String(productId))
+  function suggestAmount(productId, quantity, pickedProduct = null) {
+    if (hideAmount || roAmount) return null
+    const product =
+      pickedProduct ||
+      (options.products || []).find((p) => String(p.id) === String(productId))
     const price = Number(product?.unit_price)
     const qty = Number(quantity)
     if (!Number.isFinite(price) || !Number.isFinite(qty) || qty <= 0) return null
     return (price * qty).toFixed(2)
   }
 
-  function handleProductChange(value) {
-    const suggested = suggestAmount(value, form.quantity)
+  function handleProductChange(value, rec) {
+    const suggested = suggestAmount(value, form.quantity, rec)
     onChange({ ...form, product_id: value, ...(suggested ? { amount: suggested } : {}) })
   }
 
@@ -45,123 +69,154 @@ export function CustomerSubscriptionFields({
 
   return (
     <div className="space-y-3.5 text-xs">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div className="space-y-1">
-          <label htmlFor={`${idPrefix}-account`} className="block font-medium text-main">
-            Account
-          </label>
-          <Select
-            id={`${idPrefix}-account`}
-            ariaLabel="Account"
-            value={form.account_id}
-            options={accountOptions}
-            placeholder="Select Account"
-            disabled={disabled}
-            onChange={(value) => onChange({ ...form, account_id: value })}
-          />
+      {!hideAccount || !hideProduct ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {!hideAccount ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor={`${idPrefix}-account`} label="Account" readOnly={roAccount} />
+              <RecordRelationPicker
+                id={`${idPrefix}-account`}
+                ariaLabel="Account"
+                workspaceSlug={workspaceSlug}
+                objectKey="account"
+                objectPluralLabel="accounts"
+                value={form.account_id}
+                selectedRecord={selectedAccount}
+                fallbackOptions={options.accounts || []}
+                allowEmpty={false}
+                placeholder="Select Account"
+                searchPlaceholder="Search accounts..."
+                disabled={disabled || roAccount}
+                onChange={(value) => onChange({ ...form, account_id: value })}
+                onSessionExpired={onSessionExpired}
+              />
+            </div>
+          ) : null}
+          {!hideProduct ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor={`${idPrefix}-product`} label="Product" readOnly={roProduct} />
+              <RecordRelationPicker
+                id={`${idPrefix}-product`}
+                ariaLabel="Product"
+                workspaceSlug={workspaceSlug}
+                objectKey="product"
+                objectPluralLabel="products"
+                value={form.product_id}
+                selectedRecord={selectedProduct}
+                fallbackOptions={options.products || []}
+                allowEmpty={false}
+                placeholder="Select Product"
+                searchPlaceholder="Search products..."
+                getOptionLabel={(p) => (p?.sku ? `${p.name} (${p.sku})` : p?.name || '')}
+                disabled={disabled || roProduct}
+                onChange={handleProductChange}
+                onSessionExpired={onSessionExpired}
+              />
+            </div>
+          ) : null}
         </div>
-        <div className="space-y-1">
-          <label htmlFor={`${idPrefix}-product`} className="block font-medium text-main">
-            Product
-          </label>
-          <Select
-            id={`${idPrefix}-product`}
-            ariaLabel="Product"
-            value={form.product_id}
-            options={productOptions}
-            placeholder="Select Product"
-            disabled={disabled}
-            onChange={handleProductChange}
-          />
-        </div>
-      </div>
+      ) : null}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <label htmlFor={`${idPrefix}-quantity`} className="block font-medium text-main">
-            Quantity
-          </label>
-          <input
-            id={`${idPrefix}-quantity`}
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={form.quantity}
-            disabled={disabled}
-            onChange={(e) => handleQuantityChange(e.target.value)}
-            className="crm-input w-full px-3 py-2 num-tabular"
-          />
+      {!hideQuantity || !hideAmount ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {!hideQuantity ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor={`${idPrefix}-quantity`} label="Quantity" readOnly={roQuantity} />
+              <input
+                id={`${idPrefix}-quantity`}
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={form.quantity}
+                disabled={disabled || roQuantity}
+                onChange={(e) => handleQuantityChange(e.target.value)}
+                className="crm-input w-full px-3 py-2 num-tabular"
+              />
+            </div>
+          ) : null}
+          {!hideAmount ? (
+            <div className="space-y-1 sm:col-span-2">
+              <FieldLabel
+                htmlFor={`${idPrefix}-amount`}
+                label="Amount per interval (GHS)"
+                readOnly={roAmount}
+              />
+              <input
+                id={`${idPrefix}-amount`}
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={form.amount}
+                disabled={disabled || roAmount}
+                onChange={(e) => onChange({ ...form, amount: e.target.value })}
+                className="crm-input w-full px-3 py-2 num-tabular"
+              />
+            </div>
+          ) : null}
         </div>
-        <div className="space-y-1 sm:col-span-2">
-          <label htmlFor={`${idPrefix}-amount`} className="block font-medium text-main">
-            Amount per interval (GHS)
-          </label>
-          <input
-            id={`${idPrefix}-amount`}
-            type="number"
-            min="0.01"
-            step="0.01"
-            value={form.amount}
-            disabled={disabled}
-            onChange={(e) => onChange({ ...form, amount: e.target.value })}
-            className="crm-input w-full px-3 py-2 num-tabular"
-          />
-        </div>
-      </div>
+      ) : null}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="space-y-1">
-          <label htmlFor={`${idPrefix}-interval`} className="block font-medium text-main">
-            Interval
-          </label>
-          <Select
-            id={`${idPrefix}-interval`}
-            ariaLabel="Interval"
-            value={form.interval}
-            options={SUBSCRIPTION_INTERVALS}
-            disabled={disabled}
-            onChange={(value) => onChange({ ...form, interval: value })}
-          />
+      {!hideInterval || !hideStatus || !hideNextBilling ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {!hideInterval ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor={`${idPrefix}-interval`} label="Interval" readOnly={roInterval} />
+              <Select
+                id={`${idPrefix}-interval`}
+                ariaLabel="Interval"
+                value={form.interval}
+                options={SUBSCRIPTION_INTERVALS}
+                disabled={disabled || roInterval}
+                onChange={(value) => onChange({ ...form, interval: value })}
+              />
+            </div>
+          ) : null}
+          {!hideStatus ? (
+            <div className="space-y-1">
+              <FieldLabel htmlFor={`${idPrefix}-status`} label="Status" readOnly={roStatus} />
+              <Select
+                id={`${idPrefix}-status`}
+                ariaLabel="Status"
+                value={form.status}
+                options={SUBSCRIPTION_STATUSES.map((s) => ({ value: s, label: s }))}
+                disabled={disabled || roStatus}
+                onChange={(value) => onChange({ ...form, status: value })}
+              />
+            </div>
+          ) : null}
+          {!hideNextBilling ? (
+            <div className="space-y-1">
+              <FieldLabel
+                htmlFor={`${idPrefix}-next`}
+                label="Next billing date"
+                readOnly={roNextBilling}
+              />
+              <DatePicker
+                id={`${idPrefix}-next`}
+                ariaLabel="Next billing date"
+                value={form.next_billing_date}
+                clearable={false}
+                disabled={disabled || roNextBilling}
+                onChange={(value) => onChange({ ...form, next_billing_date: value })}
+              />
+            </div>
+          ) : null}
         </div>
-        <div className="space-y-1">
-          <label htmlFor={`${idPrefix}-status`} className="block font-medium text-main">
-            Status
-          </label>
-          <Select
-            id={`${idPrefix}-status`}
-            ariaLabel="Status"
-            value={form.status}
-            options={SUBSCRIPTION_STATUSES.map((s) => ({ value: s, label: s }))}
-            disabled={disabled}
-            onChange={(value) => onChange({ ...form, status: value })}
-          />
-        </div>
-        <div className="space-y-1">
-          <label htmlFor={`${idPrefix}-next`} className="block font-medium text-main">
-            Next billing date
-          </label>
-          <DatePicker
-            id={`${idPrefix}-next`}
-            ariaLabel="Next billing date"
-            value={form.next_billing_date}
-            clearable={false}
-            disabled={disabled}
-            onChange={(value) => onChange({ ...form, next_billing_date: value })}
-          />
-        </div>
-      </div>
+      ) : null}
 
-      {inventoryEnabled ? (
+      {inventoryEnabled && !hideWarehouse ? (
         <div className="space-y-1">
-          <label htmlFor={`${idPrefix}-warehouse`} className="block font-medium text-main">
-            Fulfillment warehouse
-          </label>
+          <FieldLabel
+            htmlFor={`${idPrefix}-warehouse`}
+            label="Fulfillment warehouse"
+            readOnly={roWarehouse}
+          />
           <Select
             id={`${idPrefix}-warehouse`}
             ariaLabel="Fulfillment warehouse"
             value={form.warehouse_id}
             options={warehouseOptions}
-            disabled={disabled}
+            disabled={disabled || roWarehouse}
             onChange={(value) => onChange({ ...form, warehouse_id: value })}
           />
           <p className="text-[11px] text-sub">
@@ -170,29 +225,31 @@ export function CustomerSubscriptionFields({
         </div>
       ) : null}
 
-      <div className="space-y-1">
-        <label htmlFor={`${idPrefix}-notes`} className="block font-medium text-main">
-          Notes
-        </label>
-        <textarea
-          id={`${idPrefix}-notes`}
-          rows={2}
-          value={form.notes}
-          disabled={disabled}
-          onChange={(e) => onChange({ ...form, notes: e.target.value })}
-          className="crm-input w-full px-3 py-2"
-        />
-      </div>
+      {!hideNotes ? (
+        <div className="space-y-1">
+          <FieldLabel htmlFor={`${idPrefix}-notes`} label="Notes" readOnly={roNotes} />
+          <textarea
+            id={`${idPrefix}-notes`}
+            rows={2}
+            value={form.notes}
+            disabled={disabled || roNotes}
+            onChange={(e) => onChange({ ...form, notes: e.target.value })}
+            className="crm-input w-full px-3 py-2"
+          />
+        </div>
+      ) : null}
 
-      <RecordSharingControl
-        idPrefix={`${idPrefix}-sharing`}
-        visibility={form.visibility}
-        sharedRoleId={form.shared_role_id}
-        roles={options.roles || []}
-        disabled={disabled}
-        canManageSharing={canManageSharing}
-        onChange={(next) => onChange({ ...form, ...next })}
-      />
+      {showSharing ? (
+        <RecordSharingControl
+          idPrefix={`${idPrefix}-sharing`}
+          visibility={form.visibility}
+          sharedRoleId={form.shared_role_id}
+          roles={options.roles || []}
+          disabled={disabled}
+          canManageSharing={canManageSharing}
+          onChange={(next) => onChange({ ...form, ...next })}
+        />
+      ) : null}
     </div>
   )
 }
