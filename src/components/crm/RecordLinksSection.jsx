@@ -110,6 +110,24 @@ export function RecordLinksSection({
     })
   }
 
+  if (Array.isArray(linkedRecords.policies) && linkedRecords.policies.length > 0) {
+    groups.push({
+      title: 'Policies',
+      items: linkedRecords.policies.map((pol) => ({
+        paneId: 'policies',
+        recordId: pol.id,
+        label: pol.product_name || pol.code,
+        meta: [
+          pol.status,
+          pol.premium !== undefined && pol.premium !== null ? formatGhs(pol.premium) : '',
+          pol.renewal_date ? `Renews ${pol.renewal_date}` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    })
+  }
+
   if (linkedRecords.customer_subscription) {
     const sub = linkedRecords.customer_subscription
     groups.push({

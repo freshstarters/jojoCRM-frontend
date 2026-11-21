@@ -60,6 +60,7 @@ const OBJECT_TYPE_LABELS = {
   invoice_status: 'Invoice status',
   payment: 'Payment',
   contract: 'Contract',
+  policy: 'Policy',
   customer_subscription: 'Customer subscription',
   inventory: 'Inventory',
   warehouse: 'Warehouse',
