@@ -311,14 +311,14 @@ The reviewer confirms:
 
 Serves the starter-object scope of the PRD.
 
-A file attaches to any starter record, and later to a tenant-created record. A tag is a workspace label that can be applied to a record. Tags are not relation fields. `Contract` records can also generate a downloadable printable commercial summary PDF carrying linked account, contact, dates, renewal date, GHS value, notes, and catalog line items.
+A file attaches to any starter record, and later to a tenant-created record. A tag is a workspace label that can be applied to a record. Tags are not relation fields. `Contract` records can also generate a downloadable printable commercial summary PDF carrying linked account, contact, dates, renewal date, GHS value, notes, and catalog line items, and `Policy` records can generate a downloadable printable schedule/certificate summary PDF (carrying policy number, title, product/type, carrier, status, account, contact, premium, billing frequency, coverage amount, effective/expiry/renewal dates, beneficiary summary, and claims notes while excluding bank/KYC fields).
 
 The reviewer confirms:
 
 - The same file control works on an Account and on an Invoice.
 - A tag created once can be applied to two records.
 - Removing the tag from one record leaves the other tagged.
-- A Contract downloads as a printable commercial summary PDF showing its fields and lines.
+- A Contract downloads as a printable commercial summary PDF showing its fields and lines, and a Policy downloads as a printable schedule/certificate summary PDF excluding bank/KYC fields.
 
 ### S4.4 CSV
 
@@ -350,13 +350,14 @@ The reviewer confirms:
 
 Serves acceptance 4, 6, and 10.
 
-Provide a dedicated cross-record Activities workspace view where users can list, filter (by activity type `note`, `task`, `call`, `meeting`, completion status, assignee, and search query), create/complete tasks (including quick To-Do creation and completion directly from the Home Dashboard action checklist), and jump directly to each activity's parent CRM record, respecting S2.4 object, field, and sharing permissions. On workspaces where `Appointment` or `Visit` is enabled, provide a lightweight Day/Week Agenda toggle beside the list view so staff can inspect scheduled appointments, assignee availability, and follow-up visits chronologically while honoring S2.4 visibility and field rights.
+Provide a dedicated cross-record Activities workspace view where users can list, filter (by activity type `note`, `task`, `call`, `meeting`, completion status, assignee, and search query), create/complete tasks (including quick To-Do creation and completion directly from the Home Dashboard action checklist), and jump directly to each activity's parent CRM record, respecting S2.4 object, field, and sharing permissions. On workspaces where `Appointment` or `Visit` is enabled, provide a lightweight Day/Week Agenda toggle beside the list view so staff can inspect scheduled appointments, assignee availability, and follow-up visits chronologically while honoring S2.4 visibility and field rights. On workspaces where `Contract` (`S3.3`) or `Policy` (`S3.5`) is enabled, provide a one-click **Renew Contract** / **Renew Policy** action in the record inspector that pre-populates a successor record carrying forward account, contact, owner, commercial terms/premium/coverage, advances the term/renewal dates, links the prior record in notes/timeline, and marks the prior record `Renewed` upon save.
 
 The reviewer confirms:
 
 - A user can view open tasks, calls, and meetings across multiple Accounts, Contacts, Deals, Jobs, and Tickets from one workspace Activities view.
 - Completing a task or creating a quick To-Do from the Home Dashboard or Activities view updates the parent record's timeline immediately, and records hidden by sharing/role rules remain excluded.
 - Switching Appointments or Visits to the Day/Week Agenda view displays visible scheduled slots and visits chronologically in the user's timezone without exposing hidden fields or unshared records.
+- Clicking **Renew Contract** or **Renew Policy** opens a pre-filled successor record with advanced dates, links the prior record, and marks the prior record `Renewed` on save.
 
 ### S4.7 Multiple sales pipelines and stage outcomes
 
@@ -483,7 +484,7 @@ The reviewer confirms:
 
 Serves acceptance 9.
 
-A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, low-stock reorder threshold crossed (when `Inventory` is enabled), and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. Webhook actions enforce the same outbound network safety checks as S5.2 scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. The notification center also surfaces configurable per-user reminders for assigned overdue `Activity` tasks, upcoming `Appointments`, and `Visits` flagged with a `follow_up` (respecting S2.4 visibility and field rights), with Settings toggles to enable or mute each reminder category. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
+A role with the automations switch can write a rule. Triggers are record created, record updated, field changed, a date-field offset, low-stock reorder threshold crossed (when `Inventory` is enabled), and a daily schedule. Conditions compare fields. Branches are if/else. Actions are create record, update record, send email, in-app notification, and webhook. Webhook actions enforce the same outbound network safety checks as S5.2 scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. One branch may run one script under the S5.2 rules. There is no loop and no custom code step. A person who lacks the switch cannot edit the rule. In-app notifications produced by an automation action appear in a topbar notification center with an unread count, mark-as-read, and dismiss controls. The notification center also surfaces configurable per-user reminders (with selectable lead-time windows such as 7, 14, or 30 days) for assigned overdue `Activity` tasks, upcoming `Appointments`, `Visits` flagged with a `follow_up`, expiring `Contracts`, `Policies` approaching `renewal_date`, and due `CustomerSubscriptions` (`next_billing_date <= today`) (all respecting S2.4 visibility and field rights), with Settings toggles to enable or mute each reminder category. Each automation rule stores and displays an execution history (trigger time, matched condition branch, action outcome, webhook or script errors, and any stored agent refusal from S7.3).
 
 The reviewer confirms:
 
@@ -491,7 +492,7 @@ The reviewer confirms:
 - The script action runs once on that branch, and the automation's execution history records the run and branch outcome.
 - A webhook action targeting a private, loopback, or link-local address is refused and logged in execution history.
 - A loop or a code step cannot be saved.
-- An automation firing an in-app notification displays the unread item in the topbar notification center and allows marking it read or dismissing it, and assigned overdue tasks, upcoming appointments, or Visits with follow-ups appear when enabled in the user's reminder preferences.
+- An automation firing an in-app notification displays the unread item in the topbar notification center and allows marking it read or dismissing it, and assigned overdue tasks, upcoming appointments, Visits with follow-ups, expiring Contracts, Policies approaching renewal, or due CustomerSubscriptions appear when enabled in the user's reminder preferences.
 
 ### S6.6 WhatsApp messaging, audio, and call logging
 

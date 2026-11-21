@@ -162,7 +162,7 @@ Appointment is its own table. Activity remains the note, task, call, or meeting 
 
 ### Jobs, purchases, and the rest of the catalog
 
-A Job has a status, an assignee, a due date, and a linked Account or Contact. A Purchase orders goods from a Supplier and can be received into Inventory when the pack includes Inventory. A Shipment records status, origin, destination, and a linked invoice or purchase. A Policy records a finance product, a premium, a status, and a renewal. It is not a bank account or a KYC file. A Booking holds dates and a linked Contact. An Enrollment joins a Contact to a Program.
+A Job has a status, an assignee, a due date, and a linked Account or Contact. A Purchase orders goods from a Supplier and can be received into Inventory when the pack includes Inventory. A Shipment records status, origin, destination, and a linked invoice or purchase. A Policy records a finance product, a premium, a status, and a renewal, supports one-click renewal into a successor Policy (`S4.6`) and printable schedule/certificate summary PDF export excluding bank/KYC fields (`S4.3`), and is not a bank account or a KYC file. A Booking holds dates and a linked Contact. An Enrollment joins a Contact to a Program.
 
 ### Invoices and payments
 
@@ -186,7 +186,7 @@ Each interval creates a Draft invoice linked to the subscription. Stock does not
 
 ### Contracts
 
-A Contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date. A user can create a pre-filled Contract directly from a Deal and export a printable commercial summary PDF (`S4.3`).
+A Contract links an Account and a Contact. It has a status, a start date, an end date, a GHS value, and a renewal date. A user can create a pre-filled Contract directly from a Deal, trigger a one-click **Renew Contract** workflow into a successor term (`S4.6`), and export a printable commercial summary PDF (`S4.3`).
 
 ### Files, tags, and relations
 
@@ -257,7 +257,7 @@ An automation is a rule. The role that has the automations switch may edit it.
 - Branches are if / else.
 - Actions: create record, update record, send email, in-app notification, or webhook.
 
-Automations have no loops and no custom code steps. A script action is the one script call allowed per branch, under the script rules above. Webhook actions enforce the same outbound network protections as scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. In-app notifications created by automations appear in a topbar notification center where users can read and dismiss them, alongside configurable per-user reminders for assigned overdue tasks, upcoming appointments, and Visits flagged with pending follow-ups. Each automation rule records an execution and refusal history showing trigger timestamps, matched branch, action outcomes, webhook or script errors, and stored AI agent refusals.
+Automations have no loops and no custom code steps. A script action is the one script call allowed per branch, under the script rules above. Webhook actions enforce the same outbound network protections as scripts: private, loopback, and link-local IP addresses are refused, and HTTP timeouts and response sizes are capped. In-app notifications created by automations appear in a topbar notification center where users can read and dismiss them, alongside configurable per-user reminders (with selectable lead-time windows) for assigned overdue tasks, upcoming appointments, Visits flagged with pending follow-ups, expiring Contracts, Policies approaching renewal, and due Customer subscriptions. Each automation rule records an execution and refusal history showing trigger timestamps, matched branch, action outcomes, webhook or script errors, and stored AI agent refusals.
 
 ### Layouts
 
