@@ -3,6 +3,7 @@ import {
   getInvoicePdfUrl,
   getStatusBadgeClass,
   issueInvoiceRecord,
+  setInvoiceLineWarehouse,
   voidInvoiceRecord,
 } from '../../service/commercialService.js'
 import {
@@ -17,6 +18,7 @@ import { Button } from '../Button.jsx'
 import { DatePicker } from '../DateTimePicker.jsx'
 import { FeedbackNotice } from '../FeedbackNotice.jsx'
 import { FieldLabel } from '../crm/FieldLabel.jsx'
+import { Select } from '../Select.jsx'
 import { RecordInspectorDrawer } from '../crm/RecordInspectorDrawer.jsx'
 import { RecordRelationPicker } from '../crm/RecordRelationPicker.jsx'
 import { InvoiceLineItemsEditor } from './InvoiceLineItemsEditor.jsx'
@@ -88,7 +90,46 @@ export function InvoiceInspectorDrawer({
   const allContacts = pane.optionsData?.contacts || []
   const isDraft = active?.status_category === 'draft'
   const lines = Array.isArray(active?.line_items) ? active.line_items : []
+  const subscriptionLines = Array.isArray(active?.subscription_lines)
+    ? active.subscription_lines
+    : []
+  const showSubscriptionLines =
+    !(lineItemEnabled && active?.line_items_readable) && subscriptionLines.length > 0
   const payments = Array.isArray(active?.payments) ? active.payments : []
+  const warehouseOptions = (pane.optionsData?.warehouses || []).map((wh) => ({
+    value: String(wh.id),
+    label: wh.name,
+  }))
+
+  async function handleSubscriptionLineWarehouseChange(lineId, nextWhId) {
+    if (!workspaceSlug || !active?.id || !lineId || !nextWhId) return
+    setActionBusy(true)
+    setActionError('')
+    setActionSuccess('')
+    try {
+      const { response, data } = await setInvoiceLineWarehouse(
+        workspaceSlug,
+        active.id,
+        lineId,
+        nextWhId,
+      )
+      if (!response.ok) {
+        if (response.status === 401) {
+          onSessionExpired?.(data?.error || data?.detail)
+          return
+        }
+        setActionError(data?.error || data?.detail || 'Could not update warehouse.')
+        return
+      }
+      setActionSuccess(data?.message || 'Warehouse updated.')
+      await pane.refreshActiveRecord()
+      onInvoiceMutated?.()
+    } catch {
+      setActionError('Network error while updating warehouse.')
+    } finally {
+      setActionBusy(false)
+    }
+  }
 
   function handleAccountContactChange(field, val, rec) {
     if (field === 'account_id') {
@@ -534,13 +575,103 @@ export function InvoiceInspectorDrawer({
         </div>
       ) : null}
 
+      {active?.source_subscription ? (
+        <div className="p-3 rounded-lg crm-subtle border crm-border flex items-center justify-between gap-2 text-xs">
+          <div>
+            <div className="text-[11px] text-sub">Customer Subscription</div>
+            <div className="font-medium text-main num-tabular">
+              {active.source_subscription.code}
+              {active.subscription_period_date
+                ? ` · Period ${formatDateOnly(active.subscription_period_date)}`
+                : ''}
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => {
+              onClose?.()
+              onOpenLinkedRecord?.('invoicing', active.source_subscription.id, 'subscriptions')
+            }}
+            className="px-2.5 py-1 text-[11px]"
+          >
+            Open Subscription
+          </Button>
+        </div>
+      ) : null}
+
       {isDraft &&
       inventoryEnabled &&
-      lines.some((li) => li.product_id && !li.warehouse_id) ? (
+      (lines.some((li) => li.product_id && !li.warehouse_id) ||
+        subscriptionLines.some((li) => li.product_id && !li.warehouse_id)) ? (
         <FeedbackNotice
           tone="warn"
           message="Select a warehouse on every product line item before issuing this invoice."
         />
+      ) : null}
+
+      {showSubscriptionLines ? (
+        <div className="pt-3 border-t crm-border space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-sub">
+              Subscription Line
+            </h4>
+            {inventoryEnabled && onOpenWarehouses ? (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose?.()
+                  onOpenWarehouses()
+                }}
+                className="text-[11px] brand-text hover:underline"
+              >
+                Manage warehouses
+              </button>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            {subscriptionLines.map((li) => (
+              <div
+                key={li.id}
+                className="p-3 rounded-lg crm-subtle border crm-border space-y-2 text-xs"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="font-medium text-main">
+                    {li.product_name || 'Subscription item'}
+                  </div>
+                  <div className="font-semibold text-main num-tabular">
+                    {formatGhs(li.line_total)}
+                  </div>
+                </div>
+                <div className="text-[11px] text-sub num-tabular">
+                  Quantity: {Number(li.quantity)}
+                </div>
+                {inventoryEnabled ? (
+                  <div className="space-y-1">
+                    <span className="block text-[11px] font-medium text-sub">
+                      Fulfillment warehouse
+                    </span>
+                    {isDraft && pane.rights.canUpdate ? (
+                      <Select
+                        id={`inv-sub-line-wh-${li.id}`}
+                        ariaLabel="Fulfillment warehouse"
+                        value={li.warehouse_id ? String(li.warehouse_id) : ''}
+                        placeholder="Select warehouse"
+                        options={warehouseOptions}
+                        disabled={actionBusy}
+                        onChange={(val) => handleSubscriptionLineWarehouseChange(li.id, val)}
+                      />
+                    ) : (
+                      <div className="text-xs text-main">
+                        {li.warehouse_name || 'No warehouse assigned'}
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
       ) : null}
 
       {lineItemEnabled && active?.line_items_readable ? (

@@ -110,6 +110,50 @@ export function RecordLinksSection({
     })
   }
 
+  if (linkedRecords.customer_subscription) {
+    const sub = linkedRecords.customer_subscription
+    groups.push({
+      title: 'Customer Subscription',
+      items: [
+        {
+          paneId: 'invoicing',
+          subtabId: 'subscriptions',
+          recordId: sub.id,
+          label: `${sub.code} · ${sub.label}`,
+          meta: [
+            sub.status,
+            sub.amount !== undefined && sub.amount !== null ? formatGhs(sub.amount) : '',
+            sub.interval ? `${sub.interval}ly` : '',
+          ]
+            .filter(Boolean)
+            .join(' · '),
+        },
+      ],
+    })
+  }
+
+  if (
+    Array.isArray(linkedRecords.customer_subscriptions) &&
+    linkedRecords.customer_subscriptions.length > 0
+  ) {
+    groups.push({
+      title: 'Customer Subscriptions',
+      items: linkedRecords.customer_subscriptions.map((sub) => ({
+        paneId: 'invoicing',
+        subtabId: 'subscriptions',
+        recordId: sub.id,
+        label: `${sub.code} · ${sub.label}`,
+        meta: [
+          sub.status,
+          sub.amount !== undefined && sub.amount !== null ? formatGhs(sub.amount) : '',
+          sub.interval ? `${sub.interval}ly` : '',
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    })
+  }
+
   if (Array.isArray(linkedRecords.jobs) && linkedRecords.jobs.length > 0) {
     groups.push({
       title: 'Jobs',
@@ -232,7 +276,9 @@ export function RecordLinksSection({
                     <Button
                       type="button"
                       variant="secondary"
-                      onClick={() => onOpenRecord(item.paneId, item.recordId)}
+                      onClick={() =>
+                        onOpenRecord(item.paneId, item.recordId, item.subtabId || '')
+                      }
                       className="px-2.5 py-1 text-[11px] shrink-0"
                     >
                       Open

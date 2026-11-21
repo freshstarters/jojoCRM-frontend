@@ -60,6 +60,7 @@ const OBJECT_TYPE_LABELS = {
   invoice_status: 'Invoice status',
   payment: 'Payment',
   contract: 'Contract',
+  customer_subscription: 'Customer subscription',
   inventory: 'Inventory',
   warehouse: 'Warehouse',
   stock_transfer: 'Stock transfer',
@@ -412,7 +413,11 @@ export function AuditLogDrawer({
                         type="button"
                         onClick={() => {
                           onClose?.()
-                          onInspectRecord(entry.inspect_pane_id, Number(entry.object_id))
+                          onInspectRecord(
+                            entry.inspect_pane_id,
+                            Number(entry.object_id),
+                            entry.inspect_subtab_id || '',
+                          )
                         }}
                         className="text-[11px] font-medium brand-text hover:underline shrink-0"
                       >
